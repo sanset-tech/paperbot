@@ -1,0 +1,95 @@
+name: Paperbot
+
+on:
+  schedule:
+    # Orari in UTC. 22:15 UTC = 23:15 in Italia d'inverno (00:15 d'estate): dopo la chiusura di Wall Street.
+    - cron: "15 22 * * 1-5"
+    # Tentativi di riserva: se il primo fallisce (Yahoo non risponde) recuperano; se è andato bene non fanno nulla.
+    - cron: "45 23 * * 1-5"
+    - cron: "15 6 * * 2-6"
+  workflow_dispatch:
+    inputs:
+      azione:
+        description: "Cosa fare"
+        type: choice
+        default: esegui
+        options:
+          - esegui
+          - aggiorna_solo_dashboard
+          - riattiva_dopo_kill_switch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paperbot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prima installazione (estrae i file dal pacchetto iniziale)
+        run: |
+          if [ -f bundle.txt ]; then
+          python3 - <<'PY'
+          import hashlib, pathlib, re, sys
+          txt = open("bundle.txt", encoding="utf-8").read().replace("\r\n", "\n")
+          parts = re.split(r"^#==== FILE: (\S+) sha256=([0-9a-f]{64})\n", txt, flags=re.M)
+          bad = []
+          for i in range(1, len(parts), 3):
+              path, h, body = parts[i], parts[i + 1], parts[i + 2].rstrip("\n")
+              if hashlib.sha256(body.encode()).hexdigest() != h:
+                  bad.append(path)
+              p = pathlib.Path(path)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(body + "\n" if body else "", encoding="utf-8")
+          print("file estratti:", (len(parts) - 1) // 3)
+          if bad:
+              print("ERRORE, file non integri:", bad)
+              sys.exit(1)
+          PY
+          git rm -q bundle.txt
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installa dipendenze
+        run: pip install pandas numpy yfinance
+
+      - name: Riattiva dopo kill switch
+        if: github.event.inputs.azione == 'riattiva_dopo_kill_switch'
+        run: python run_paper.py --unhalt
+
+      - name: Esegui il bot
+        id: bot
+        if: github.event.inputs.azione != 'aggiorna_solo_dashboard'
+        continue-on-error: true
+        run: python run_paper.py
+
+      - name: Aggiorna dashboard
+        run: python make_dashboard.py
+
+      - name: Salva stato e dashboard nel repository
+        run: |
+          git config user.name "paperbot"
+          git config user.email "paperbot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica da salvare"
+          else
+            git commit -m "Paperbot: aggiornamento $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git push
+          fi
+
+      - name: Segnala errore
+        if: steps.bot.outcome == 'failure'
+        run: |
+          echo "::error::Il bot non ha completato l'esecuzione. Guarda il passo 'Esegui il bot'."
+          exit 1
