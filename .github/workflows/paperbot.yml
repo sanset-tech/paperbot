@@ -17,6 +17,7 @@ on:
           - esegui
           - aggiorna_solo_dashboard
           - riattiva_dopo_kill_switch
+          - backtest
 
 permissions:
   contents: write
@@ -32,25 +33,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prima installazione (estrae i file dal pacchetto iniziale)
+      - name: Aggiornamenti in arrivo (estrae bundle.txt se presente)
         run: |
           if [ -f bundle.txt ]; then
           python3 - <<'PY'
           import hashlib, pathlib, re, sys
           txt = open("bundle.txt", encoding="utf-8").read().replace("\r\n", "\n")
-          parts = re.split(r"^#==== FILE: (\S+) sha256=([0-9a-f]{64})\n", txt, flags=re.M)
-          bad = []
-          for i in range(1, len(parts), 3):
-              path, h, body = parts[i], parts[i + 1], parts[i + 2].rstrip("\n")
-              if hashlib.sha256(body.encode()).hexdigest() != h:
-                  bad.append(path)
+          parts = re.split(r"^#==== (FILE|PATCH): (\S+) sha256=([0-9a-f]{64})\n", txt, flags=re.M)
+          bad, todo = [], {}
+          for i in range(1, len(parts), 4):
+              kind, path, h, body = parts[i], parts[i + 1], parts[i + 2], parts[i + 3]
               p = pathlib.Path(path)
-              p.parent.mkdir(parents=True, exist_ok=True)
-              p.write_text(body + "\n" if body else "", encoding="utf-8")
-          print("file estratti:", (len(parts) - 1) // 3)
+              if kind == "FILE":
+                  new = body.rstrip("\n")
+              else:
+                  new = p.read_text(encoding="utf-8").rstrip("\n")
+                  for old, rep in re.findall(r"<<<<<<< OLD\n(.*?)\n=======\n(.*?)\n>>>>>>> NEW\n", body, flags=re.S):
+                      if new.count(old) != 1:
+                          bad.append(path)
+                          break
+                      new = new.replace(old, rep)
+              if hashlib.sha256(new.encode()).hexdigest() != h:
+                  bad.append(path)
+              todo[p] = new
           if bad:
-              print("ERRORE, file non integri:", bad)
+              print("ERRORE, file non integri, nessuna modifica:", sorted(set(bad)))
               sys.exit(1)
+          for p, new in todo.items():
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(new + "\n" if new else "", encoding="utf-8")
+          print("file aggiornati:", len(todo))
           PY
           git rm -q bundle.txt
           fi
@@ -67,9 +79,17 @@ jobs:
         if: github.event.inputs.azione == 'riattiva_dopo_kill_switch'
         run: python run_paper.py --unhalt
 
+      - name: Backtest su dati reali (risultati in reports/)
+        if: github.event.inputs.azione == 'backtest'
+        run: |
+          python run_backtest.py --out reports/dal_2005 > /dev/null
+          python run_backtest.py --start 2015-01-01 --out reports/dal_2015 > /dev/null
+          python run_backtest.py --start 2021-01-01 --out reports/dal_2021 > /dev/null
+          ls -R reports
+
       - name: Esegui il bot
         id: bot
-        if: github.event.inputs.azione != 'aggiorna_solo_dashboard'
+        if: github.event.inputs.azione != 'aggiorna_solo_dashboard' && github.event.inputs.azione != 'backtest'
         continue-on-error: true
         run: python run_paper.py
 
@@ -81,6 +101,7 @@ jobs:
           git config user.name "paperbot"
           git config user.email "paperbot@users.noreply.github.com"
           git add -A
+          git reset -q -- reports/*/equity.csv 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "Nessuna modifica da salvare"
           else
