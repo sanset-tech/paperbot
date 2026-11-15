@@ -25,7 +25,7 @@ import pandas as pd
 
 from bot import data as dmod
 from bot.broker import PaperBroker
-from bot.config import load_config, resolve
+from bot.config import load_config, resolve, tactical_cfg
 from bot.engine import Engine, load_blackout
 from run_backtest import make_broker
 
@@ -160,8 +160,39 @@ def main():
     append_csv(journal / "trades_closed.csv", broker.trades[n_trades:])
     append_csv(journal / "equity.csv", [{"date": d, "equity": e} for d, e in broker.equity_curve[-len(todo):]])
     report = status(broker)
+
+    # conto tattico (operazioni brevi), separato dal portafoglio principale
+    tcfg = tactical_cfg(cfg)
+    if tcfg:
+        report += "\n\n=== CONTO TATTICO ===\n" + run_account(tcfg, data, cash_rate, journal, "tattica_")
     (journal / "ultimo_report.txt").write_text(report, encoding="utf-8")
     print(report)
+
+
+def run_account(cfg, data, cash_rate, journal, prefix) -> str:
+    """Esegue un conto aggiuntivo con il suo file di stato. Ritorna il suo stato in testo."""
+    sp = resolve(cfg, cfg["state_file"])
+    b = PaperBroker.load(sp) if sp.exists() else None
+    first = b is None
+    if first:
+        b = make_broker(cfg)
+        log.info("Nuovo conto tattico virtuale: %.2f", b.cash)
+    sub = {t: data[t] for t in cfg["universe"] if t in data}
+    if set(b.positions) - set(sub):
+        log.error("Conto tattico: mancano dati di posizioni aperte, nessuna modifica.")
+        return status(b)
+    eng = Engine(cfg, sub, b, load_blackout(resolve(cfg, cfg["blackout_file"])), cash_rate)
+    cal = eng.calendar()
+    todo = cal[-1:] if first else cal[cal > pd.Timestamp(b.last_processed)]
+    nf, nt = len(b.fills), len(b.trades)
+    for d in todo:
+        for ev in eng.step(d):
+            log.info("tattica: %s", ev)
+    if len(todo):
+        b.save(sp)
+        append_csv(journal / f"{prefix}fills.csv", b.fills[nf:])
+        append_csv(journal / f"{prefix}trades_closed.csv", b.trades[nt:])
+    return status(b)
 
 
 if __name__ == "__main__":

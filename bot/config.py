@@ -25,9 +25,9 @@ def validate(cfg: dict) -> None:
         (0 < r["max_gross_exposure"] <= 1, "niente leva: max_gross_exposure <= 1"),
         (r["max_positions"] >= 1, "max_positions >= 1"),
         (0 < r["drawdown_reduce_at"] < r["drawdown_kill_at"] < 1, "soglie drawdown incoerenti"),
-        (s.get("type", "breakout") in ("breakout", "rotation"), "strategy.type: breakout o rotation"),
-        (s.get("type") == "rotation" or s["exit_breakout"] < s["entry_breakout"] < s["trend_sma"], "periodi strategia incoerenti"),
-        (s.get("type") == "rotation" or (s["initial_stop_atr"] > 0 and s["trailing_stop_atr"] > 0), "stop ATR devono essere > 0"),
+        (s.get("type", "breakout") in ("breakout", "rotation", "tactical"), "strategy.type non valido"),
+        (s.get("type") in ("rotation", "tactical") or s["exit_breakout"] < s["entry_breakout"] < s["trend_sma"], "periodi strategia incoerenti"),
+        (s.get("type") in ("rotation", "tactical") or (s["initial_stop_atr"] > 0 and s["trailing_stop_atr"] > 0), "stop ATR devono essere > 0"),
         (s.get("type") != "rotation" or s["top_n"] >= 1, "top_n >= 1"),
         (0 <= c.get("cash_rate_fallback", 0) < 0.2, "cash_rate_fallback fuori range"),
         (c["commission_pct"] >= 0 and c["slippage_pct"] >= 0, "costi negativi"),
@@ -36,6 +36,21 @@ def validate(cfg: dict) -> None:
     for ok, msg in checks:
         if not ok:
             raise ConfigError(msg)
+
+
+def tactical_cfg(cfg: dict) -> dict | None:
+    """Configurazione del conto tattico (separato dal portafoglio principale), o None se disattivato."""
+    t = cfg.get("tactical")
+    if not t or not t.get("enabled"):
+        return None
+    c = {k: v for k, v in cfg.items() if k not in ("tactical",)}
+    c = json.loads(json.dumps(c))
+    c["universe"] = t["universe"]
+    c["strategy"] = dict(t["strategy"], type="tactical")
+    c["portfolio"] = dict(cfg["portfolio"], initial_capital=t["initial_capital"])
+    c["state_file"] = t["state_file"]
+    c["_base_dir"] = cfg.get("_base_dir", ".")
+    return c
 
 
 def resolve(cfg: dict, rel: str) -> Path:

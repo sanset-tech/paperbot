@@ -14,7 +14,7 @@ import pandas as pd
 
 from bot import data as dmod
 from bot.broker import PaperBroker
-from bot.config import load_config, resolve
+from bot.config import load_config, resolve, tactical_cfg
 from bot.engine import Engine, load_blackout
 from bot.metrics import buy_and_hold, equity_series, summary
 
@@ -47,6 +47,8 @@ def main():
     ap.add_argument("--end")
     ap.add_argument("--strategy", choices=["rotation", "breakout"], help="sovrascrive strategy.type")
     ap.add_argument("--out", default="backtest_out")
+    ap.add_argument("--tactical", choices=["auto", "on", "off"], default="on",
+                    help="includere il conto tattico nel confronto (on = anche se disattivato in config)")
     a = ap.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
@@ -71,8 +73,29 @@ def main():
     if b.halted:
         res["ATTENZIONE"] = "kill switch scattato durante il backtest"
 
+    tcfg = None
+    if a.tactical != "off" and cfg.get("tactical"):
+        tc = dict(cfg)
+        tc["tactical"] = dict(cfg["tactical"], enabled=a.tactical == "on" or cfg["tactical"].get("enabled"))
+        tcfg = tactical_cfg(tc)
+    if tcfg:
+        teng = run(tcfg, {t: data[t] for t in tcfg["universe"] if t in data}, a.start, a.end, cash_rate)
+        teq = equity_series(teng.broker.equity_curve).reindex(eq.index).ffill().bfill()
+        res["tattica"] = summary(teq, teng.broker.trades)
+        res["tattica"]["interessi_liquidita"] = round(teng.broker.interest_earned, 2)
+        tyear = teq.resample("YE").last().pct_change().dropna() * 100
+        res["tattica_rendimenti_annui_%"] = {int(k.year): round(v, 1) for k, v in tyear.items()}
+        comb = eq + teq
+        res["combinato"] = summary(comb)
+        cap0 = cfg["portfolio"]["initial_capital"] + tcfg["portfolio"]["initial_capital"]
+        bh_comb = bh * cap0 / cfg["portfolio"]["initial_capital"]
+        res["combinato"]["benchmark_buy_and_hold_CAGR_%"] = summary(bh_comb).get("CAGR_%")
+        corr = eq.pct_change().corr(teq.pct_change())
+        res["combinato"]["correlazione_base_tattica"] = round(float(corr), 2)
+        pd.DataFrame(teng.broker.trades).to_csv(Path(a.out) / "trades_tattica.csv", index=False) if Path(a.out).exists() else None
+
     out = Path(a.out)
-    out.mkdir(exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(b.trades).to_csv(out / "trades.csv", index=False)
     pd.DataFrame({"strategia": eq, "buy_and_hold": bh}).to_csv(out / "equity.csv")
     (out / "report.json").write_text(json.dumps(res, indent=2, ensure_ascii=False), encoding="utf-8")

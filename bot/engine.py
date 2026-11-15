@@ -9,7 +9,7 @@ import pandas as pd
 
 from .broker import Order, PaperBroker
 from .risk import RiskManager
-from .strategy import RotationStrategy, TrendStrategy
+from .strategy import RotationStrategy, TacticalStrategy, TrendStrategy, in_turn_of_month, us_bday
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Engine:
                  blackout: set[str] | None = None, cash_rate: pd.Series | None = None):
         self.cfg = cfg
         self.kind = cfg["strategy"].get("type", "breakout")
-        self.strategy = RotationStrategy(cfg["strategy"]) if self.kind == "rotation" else TrendStrategy(cfg["strategy"])
+        self.strategy = {"rotation": RotationStrategy, "tactical": TacticalStrategy}.get(self.kind, TrendStrategy)(cfg["strategy"])
         self.cash_rate = cash_rate
         self.cash_rate_fallback = cfg["costs"].get("cash_rate_fallback", 0.0)
         self.risk = RiskManager(cfg["risk"], cfg["portfolio"]["fractional_shares"])
@@ -68,6 +68,9 @@ class Engine:
 
         if self.kind == "rotation":
             self._rotation(date, ds, bars, eq)
+            return self._events(n_fills)
+        if self.kind == "tactical":
+            self._tactical(date, ds, bars, eq)
             return self._events(n_fills)
 
         # 5. uscite e trailing stop
@@ -159,6 +162,36 @@ class Engine:
                 b.submit(Order(t, "BUY", delta, ds, why, add=cur > 0))
         b.last_rebalance = ds
         log.info("%s ribilanciamento: %s", ds, {t: round(w, 3) for t, w in sorted(weights.items())} or "tutto liquidità")
+
+    def _tactical(self, date: pd.Timestamp, ds: str, bars: dict, eq: float) -> None:
+        """Decide in chiusura cosa tenere domani; gli ordini si eseguono all'apertura successiva."""
+        b, p = self.broker, self.cfg["strategy"]
+        if not hasattr(self, "_bday"):
+            self._bday = us_bday()
+        tomorrow = date + self._bday
+        tom = p.get("turn_of_month", True) and in_turn_of_month(tomorrow, self._bday)
+        slot = eq * (1 - 2 * (b.slippage_pct + b.commission_pct)) / len(self.cfg["universe"])
+        if self.risk.drawdown(eq, b.peak_equity) >= self.cfg["risk"]["drawdown_reduce_at"]:
+            slot *= self.cfg["risk"]["drawdown_reduce_factor"]
+        for t in self.cfg["universe"]:
+            row = bars.get(t)
+            if row is None:
+                continue
+            held = t in b.positions
+            want_tom = tom and t in p.get("turn_of_month_tickers", ["SPY"])
+            if held:
+                days = len(pd.bdate_range(b.positions[t].entry_date, ds)) - 1
+                want_mr = not self.strategy.meanrev_exit(row, days)
+            else:
+                want_mr = self.strategy.meanrev_entry(row)
+            want = want_tom or want_mr
+            if held and not want:
+                b.submit(Order(t, "SELL", b.positions[t].qty, ds, "tattica: uscita"))
+            elif not held and want:
+                qty = self.risk._round(slot / float(row["Close"]))
+                why = "tattica: ipervenduto in trend rialzista" if want_mr else "tattica: effetto inizio mese"
+                if qty > 0:
+                    b.submit(Order(t, "BUY", qty, ds, why))
 
     def _events(self, since: int) -> list[str]:
         return [f"{f['date']} {f['side']} {f['ticker']} x{f['qty']} @ {f['price']} ({f['reason']})"

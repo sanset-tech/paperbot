@@ -103,3 +103,60 @@ class RotationStrategy:
             budget = slot * len(cands)  # gli slot vuoti restano in liquidità
             return {t: budget * v / tot for t, v in inv.items()}
         return {t: slot for t, _ in cands}
+
+
+def rsi(close: pd.Series, n: int) -> pd.Series:
+    d = close.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    return 100 - 100 / (1 + up / dn.replace(0, np.nan))
+
+
+class TacticalStrategy:
+    """Operazioni brevi (1-5 giorni) solo su effetti di mercato documentati, sugli ETF indice più liquidi.
+
+    1. Ritorno verso la media: in trend rialzista (sopra la media a 200 giorni) un forte ipervenduto
+       di breve (RSI a 2 giorni sotto la soglia) tende a rientrare in pochi giorni.
+       Uscita: chiusura sopra la media a 5 giorni oppure dopo max_hold_days giorni.
+    2. Effetto inizio mese: gli acquisti di fine/inizio mese (stipendi, fondi pensione) spingono
+       l'indice nell'ultimo giorno di borsa del mese e nei primi tre del mese successivo.
+    """
+
+    def __init__(self, p: dict):
+        self.p = p
+
+    @property
+    def warmup(self) -> int:
+        return 210
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        out = df.copy()
+        out["sma200"] = out["Close"].rolling(200).mean()
+        out["sma5"] = out["Close"].rolling(5).mean()
+        out["rsi2"] = rsi(out["Close"], 2)
+        return out
+
+    def meanrev_entry(self, row) -> bool:
+        if not all(np.isfinite(row[c]) for c in ("sma200", "rsi2")):
+            return False
+        return row["Close"] > row["sma200"] and row["rsi2"] < self.p["rsi_entry"]
+
+    def meanrev_exit(self, row, days_held: int) -> bool:
+        return (np.isfinite(row["sma5"]) and row["Close"] > row["sma5"]) or days_held >= self.p["max_hold_days"]
+
+
+def us_bday():
+    from pandas.tseries.holiday import USFederalHolidayCalendar
+    from pandas.tseries.offsets import CustomBusinessDay
+    return CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+
+def in_turn_of_month(d: pd.Timestamp, bday=None) -> bool:
+    """Vero se d è l'ultimo giorno di borsa del mese o uno dei primi tre (calendario USA approssimato)."""
+    bday = bday or us_bday()
+    d = pd.Timestamp(d).normalize()
+    if (d + bday).month != d.month:
+        return True
+    first = pd.Timestamp(d.year, d.month, 1)
+    days = pd.date_range(first, d, freq=bday)
+    return 0 < len(days) <= 3 and days[-1] == d

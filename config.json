@@ -62,5 +62,24 @@
   "blackout_file": "blackout_dates.csv",
   "state_file": "state/paper_state.json",
   "journal_dir": "state",
-  "process_today_after_hour_rome": 23
+  "process_today_after_hour_rome": 23,
+  "tactical": {
+    "enabled": false,
+    "_nota": "conto virtuale separato per operazioni brevi; si attiva solo se il backtest migliora il risultato",
+    "initial_capital": 10000.0,
+    "universe": [
+      "SPY",
+      "QQQ",
+      "IWM"
+    ],
+    "state_file": "state/tactical_state.json",
+    "strategy": {
+      "rsi_entry": 10,
+      "max_hold_days": 5,
+      "turn_of_month": true,
+      "turn_of_month_tickers": [
+        "SPY"
+      ]
+    }
+  }
 }

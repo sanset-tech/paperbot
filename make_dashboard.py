@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from bot.config import load_config, resolve
+from bot.config import load_config, resolve, tactical_cfg
 
 NAMES = {"SPY": "Azioni USA", "QQQ": "Nasdaq 100", "IWM": "Small cap USA", "EFA": "Azioni Europa/Giappone",
          "EEM": "Emergenti", "TLT": "Bond USA 20+ anni", "IEF": "Bond USA 7-10 anni", "GLD": "Oro",
@@ -100,6 +100,26 @@ def build(cfg, out_dir: Path):
 <div class="card"><h2>Ultime operazioni</h2><ul>{hist}</ul></div>
 <div class="card muted small">Ultimo giorno di borsa: {state.get("last_processed")} · Ultimo ribilanciamento: {state.get("last_rebalance") or "-"}<br>
 Capitale iniziale {fmt(cap, 0)} {cur} · Portafoglio VIRTUALE, nessun soldo vero.</div>'''
+
+    tcfg = tactical_cfg(cfg)
+    if state is not None and tcfg:
+        tp = resolve(tcfg, tcfg["state_file"])
+        if tp.exists():
+            ts = json.loads(tp.read_text(encoding="utf-8"))
+            teq = equity(ts)
+            tcap = tcfg["portfolio"]["initial_capital"]
+            tpos = "".join(f'<li><b>{t}</b> x{p["qty"]:g} <span class="muted">carico {fmt(p["entry_price"])}</span></li>'
+                           for t, p in ts["positions"].items()) or '<li class="muted">nessuna posizione aperta</li>'
+            tpend = "".join(f'<li>{o["side"]} <b>{o["ticker"]}</b> x{o["qty"]:g} <span class="muted">({html.escape(o["reason"])})</span></li>'
+                            for o in ts["pending"])
+            closed = ts.get("trades", [])
+            wins = sum(1 for t in closed if t["pnl"] > 0)
+            body += f'''
+<div class="card"><h2>Conto tattico (operazioni brevi)</h2>
+  <div class="big" style="font-size:22px">{fmt(teq)} <small>{cur}</small></div>
+  <div class="muted small">Da inizio {100 * (teq / tcap - 1):+.2f}% · operazioni chiuse {len(closed)}{f" · vinte {round(100 * wins / len(closed))}%" if closed else ""}</div>
+  <ul style="margin-top:8px">{tpos}{tpend}</ul>
+</div>'''
 
     page = f'''<!DOCTYPE html>
 <html lang="it"><head>
