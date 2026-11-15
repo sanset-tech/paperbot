@@ -1,0 +1,406 @@
+#==== PATCH: bot/strategy.py sha256=7aa93dc7185c65d854efaf1bec9d71d003233c8318b2809eef10fd89278c49be
+<<<<<<< OLD
+            return {t: budget * v / tot for t, v in inv.items()}
+        return {t: slot for t, _ in cands}
+=======
+            return {t: budget * v / tot for t, v in inv.items()}
+        return {t: slot for t, _ in cands}
+
+
+def rsi(close: pd.Series, n: int) -> pd.Series:
+    d = close.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    return 100 - 100 / (1 + up / dn.replace(0, np.nan))
+
+
+class TacticalStrategy:
+    """Operazioni brevi (1-5 giorni) solo su effetti di mercato documentati, sugli ETF indice più liquidi.
+
+    1. Ritorno verso la media: in trend rialzista (sopra la media a 200 giorni) un forte ipervenduto
+       di breve (RSI a 2 giorni sotto la soglia) tende a rientrare in pochi giorni.
+       Uscita: chiusura sopra la media a 5 giorni oppure dopo max_hold_days giorni.
+    2. Effetto inizio mese: gli acquisti di fine/inizio mese (stipendi, fondi pensione) spingono
+       l'indice nell'ultimo giorno di borsa del mese e nei primi tre del mese successivo.
+    """
+
+    def __init__(self, p: dict):
+        self.p = p
+
+    @property
+    def warmup(self) -> int:
+        return 210
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        out = df.copy()
+        out["sma200"] = out["Close"].rolling(200).mean()
+        out["sma5"] = out["Close"].rolling(5).mean()
+        out["rsi2"] = rsi(out["Close"], 2)
+        return out
+
+    def meanrev_entry(self, row) -> bool:
+        if not all(np.isfinite(row[c]) for c in ("sma200", "rsi2")):
+            return False
+        return row["Close"] > row["sma200"] and row["rsi2"] < self.p["rsi_entry"]
+
+    def meanrev_exit(self, row, days_held: int) -> bool:
+        return (np.isfinite(row["sma5"]) and row["Close"] > row["sma5"]) or days_held >= self.p["max_hold_days"]
+
+
+def us_bday():
+    from pandas.tseries.holiday import USFederalHolidayCalendar
+    from pandas.tseries.offsets import CustomBusinessDay
+    return CustomBusinessDay(calendar=USFederalHolidayCalendar())
+
+
+def in_turn_of_month(d: pd.Timestamp, bday=None) -> bool:
+    """Vero se d è l'ultimo giorno di borsa del mese o uno dei primi tre (calendario USA approssimato)."""
+    bday = bday or us_bday()
+    d = pd.Timestamp(d).normalize()
+    if (d + bday).month != d.month:
+        return True
+    first = pd.Timestamp(d.year, d.month, 1)
+    days = pd.date_range(first, d, freq=bday)
+    return 0 < len(days) <= 3 and days[-1] == d
+>>>>>>> NEW
+#==== PATCH: bot/engine.py sha256=36143bcfd317a301108217f188f3c40c5f85b5bbf746d7116cfcea9e769c75fa
+<<<<<<< OLD
+from .broker import Order, PaperBroker
+from .risk import RiskManager
+from .strategy import RotationStrategy, TrendStrategy
+
+log = logging.getLogger(__name__)
+=======
+from .broker import Order, PaperBroker
+from .risk import RiskManager
+from .strategy import RotationStrategy, TacticalStrategy, TrendStrategy, in_turn_of_month, us_bday
+
+log = logging.getLogger(__name__)
+>>>>>>> NEW
+<<<<<<< OLD
+        self.cfg = cfg
+        self.kind = cfg["strategy"].get("type", "breakout")
+        self.strategy = RotationStrategy(cfg["strategy"]) if self.kind == "rotation" else TrendStrategy(cfg["strategy"])
+        self.cash_rate = cash_rate
+        self.cash_rate_fallback = cfg["costs"].get("cash_rate_fallback", 0.0)
+=======
+        self.cfg = cfg
+        self.kind = cfg["strategy"].get("type", "breakout")
+        self.strategy = {"rotation": RotationStrategy, "tactical": TacticalStrategy}.get(self.kind, TrendStrategy)(cfg["strategy"])
+        self.cash_rate = cash_rate
+        self.cash_rate_fallback = cfg["costs"].get("cash_rate_fallback", 0.0)
+>>>>>>> NEW
+<<<<<<< OLD
+        if self.kind == "rotation":
+            self._rotation(date, ds, bars, eq)
+            return self._events(n_fills)
+
+=======
+        if self.kind == "rotation":
+            self._rotation(date, ds, bars, eq)
+            return self._events(n_fills)
+        if self.kind == "tactical":
+            self._tactical(date, ds, bars, eq)
+            return self._events(n_fills)
+
+>>>>>>> NEW
+<<<<<<< OLD
+        log.info("%s ribilanciamento: %s", ds, {t: round(w, 3) for t, w in sorted(weights.items())} or "tutto liquidità")
+
+    def _events(self, since: int) -> list[str]:
+        return [f"{f['date']} {f['side']} {f['ticker']} x{f['qty']} @ {f['price']} ({f['reason']})"
+=======
+        log.info("%s ribilanciamento: %s", ds, {t: round(w, 3) for t, w in sorted(weights.items())} or "tutto liquidità")
+
+    def _tactical(self, date: pd.Timestamp, ds: str, bars: dict, eq: float) -> None:
+        """Decide in chiusura cosa tenere domani; gli ordini si eseguono all'apertura successiva."""
+        b, p = self.broker, self.cfg["strategy"]
+        if not hasattr(self, "_bday"):
+            self._bday = us_bday()
+        tomorrow = date + self._bday
+        tom = p.get("turn_of_month", True) and in_turn_of_month(tomorrow, self._bday)
+        slot = eq * (1 - 2 * (b.slippage_pct + b.commission_pct)) / len(self.cfg["universe"])
+        if self.risk.drawdown(eq, b.peak_equity) >= self.cfg["risk"]["drawdown_reduce_at"]:
+            slot *= self.cfg["risk"]["drawdown_reduce_factor"]
+        for t in self.cfg["universe"]:
+            row = bars.get(t)
+            if row is None:
+                continue
+            held = t in b.positions
+            want_tom = tom and t in p.get("turn_of_month_tickers", ["SPY"])
+            if held:
+                days = len(pd.bdate_range(b.positions[t].entry_date, ds)) - 1
+                want_mr = not self.strategy.meanrev_exit(row, days)
+            else:
+                want_mr = self.strategy.meanrev_entry(row)
+            want = want_tom or want_mr
+            if held and not want:
+                b.submit(Order(t, "SELL", b.positions[t].qty, ds, "tattica: uscita"))
+            elif not held and want:
+                qty = self.risk._round(slot / float(row["Close"]))
+                why = "tattica: ipervenduto in trend rialzista" if want_mr else "tattica: effetto inizio mese"
+                if qty > 0:
+                    b.submit(Order(t, "BUY", qty, ds, why))
+
+    def _events(self, since: int) -> list[str]:
+        return [f"{f['date']} {f['side']} {f['ticker']} x{f['qty']} @ {f['price']} ({f['reason']})"
+>>>>>>> NEW
+#==== PATCH: bot/config.py sha256=816b09b81283c17727ea7101f8e248a727f0d5aa5b351d4b3e1191e02f0a726f
+<<<<<<< OLD
+        (r["max_positions"] >= 1, "max_positions >= 1"),
+        (0 < r["drawdown_reduce_at"] < r["drawdown_kill_at"] < 1, "soglie drawdown incoerenti"),
+        (s.get("type", "breakout") in ("breakout", "rotation"), "strategy.type: breakout o rotation"),
+        (s.get("type") == "rotation" or s["exit_breakout"] < s["entry_breakout"] < s["trend_sma"], "periodi strategia incoerenti"),
+        (s.get("type") == "rotation" or (s["initial_stop_atr"] > 0 and s["trailing_stop_atr"] > 0), "stop ATR devono essere > 0"),
+        (s.get("type") != "rotation" or s["top_n"] >= 1, "top_n >= 1"),
+        (0 <= c.get("cash_rate_fallback", 0) < 0.2, "cash_rate_fallback fuori range"),
+=======
+        (r["max_positions"] >= 1, "max_positions >= 1"),
+        (0 < r["drawdown_reduce_at"] < r["drawdown_kill_at"] < 1, "soglie drawdown incoerenti"),
+        (s.get("type", "breakout") in ("breakout", "rotation", "tactical"), "strategy.type non valido"),
+        (s.get("type") in ("rotation", "tactical") or s["exit_breakout"] < s["entry_breakout"] < s["trend_sma"], "periodi strategia incoerenti"),
+        (s.get("type") in ("rotation", "tactical") or (s["initial_stop_atr"] > 0 and s["trailing_stop_atr"] > 0), "stop ATR devono essere > 0"),
+        (s.get("type") != "rotation" or s["top_n"] >= 1, "top_n >= 1"),
+        (0 <= c.get("cash_rate_fallback", 0) < 0.2, "cash_rate_fallback fuori range"),
+>>>>>>> NEW
+<<<<<<< OLD
+
+
+def resolve(cfg: dict, rel: str) -> Path:
+    p = Path(rel)
+=======
+
+
+def tactical_cfg(cfg: dict) -> dict | None:
+    """Configurazione del conto tattico (separato dal portafoglio principale), o None se disattivato."""
+    t = cfg.get("tactical")
+    if not t or not t.get("enabled"):
+        return None
+    c = {k: v for k, v in cfg.items() if k not in ("tactical",)}
+    c = json.loads(json.dumps(c))
+    c["universe"] = t["universe"]
+    c["strategy"] = dict(t["strategy"], type="tactical")
+    c["portfolio"] = dict(cfg["portfolio"], initial_capital=t["initial_capital"])
+    c["state_file"] = t["state_file"]
+    c["_base_dir"] = cfg.get("_base_dir", ".")
+    return c
+
+
+def resolve(cfg: dict, rel: str) -> Path:
+    p = Path(rel)
+>>>>>>> NEW
+#==== PATCH: run_backtest.py sha256=87b30facfb1f9e98d534f250f8262265154b68f3cab3c806c7224723f0c2ea2f
+<<<<<<< OLD
+from bot import data as dmod
+from bot.broker import PaperBroker
+from bot.config import load_config, resolve
+from bot.engine import Engine, load_blackout
+from bot.metrics import buy_and_hold, equity_series, summary
+=======
+from bot import data as dmod
+from bot.broker import PaperBroker
+from bot.config import load_config, resolve, tactical_cfg
+from bot.engine import Engine, load_blackout
+from bot.metrics import buy_and_hold, equity_series, summary
+>>>>>>> NEW
+<<<<<<< OLD
+    ap.add_argument("--strategy", choices=["rotation", "breakout"], help="sovrascrive strategy.type")
+    ap.add_argument("--out", default="backtest_out")
+    a = ap.parse_args()
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+=======
+    ap.add_argument("--strategy", choices=["rotation", "breakout"], help="sovrascrive strategy.type")
+    ap.add_argument("--out", default="backtest_out")
+    ap.add_argument("--tactical", choices=["auto", "on", "off"], default="on",
+                    help="includere il conto tattico nel confronto (on = anche se disattivato in config)")
+    a = ap.parse_args()
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+>>>>>>> NEW
+<<<<<<< OLD
+        res["ATTENZIONE"] = "kill switch scattato durante il backtest"
+
+    out = Path(a.out)
+    out.mkdir(exist_ok=True)
+=======
+        res["ATTENZIONE"] = "kill switch scattato durante il backtest"
+
+    tcfg = None
+    if a.tactical != "off" and cfg.get("tactical"):
+        tc = dict(cfg)
+        tc["tactical"] = dict(cfg["tactical"], enabled=a.tactical == "on" or cfg["tactical"].get("enabled"))
+        tcfg = tactical_cfg(tc)
+    if tcfg:
+        teng = run(tcfg, {t: data[t] for t in tcfg["universe"] if t in data}, a.start, a.end, cash_rate)
+        teq = equity_series(teng.broker.equity_curve).reindex(eq.index).ffill().bfill()
+        res["tattica"] = summary(teq, teng.broker.trades)
+        res["tattica"]["interessi_liquidita"] = round(teng.broker.interest_earned, 2)
+        tyear = teq.resample("YE").last().pct_change().dropna() * 100
+        res["tattica_rendimenti_annui_%"] = {int(k.year): round(v, 1) for k, v in tyear.items()}
+        comb = eq + teq
+        res["combinato"] = summary(comb)
+        cap0 = cfg["portfolio"]["initial_capital"] + tcfg["portfolio"]["initial_capital"]
+        bh_comb = bh * cap0 / cfg["portfolio"]["initial_capital"]
+        res["combinato"]["benchmark_buy_and_hold_CAGR_%"] = summary(bh_comb).get("CAGR_%")
+        corr = eq.pct_change().corr(teq.pct_change())
+        res["combinato"]["correlazione_base_tattica"] = round(float(corr), 2)
+        pd.DataFrame(teng.broker.trades).to_csv(Path(a.out) / "trades_tattica.csv", index=False) if Path(a.out).exists() else None
+
+    out = Path(a.out)
+    out.mkdir(exist_ok=True)
+>>>>>>> NEW
+<<<<<<< OLD
+
+    out = Path(a.out)
+    out.mkdir(exist_ok=True)
+    pd.DataFrame(b.trades).to_csv(out / "trades.csv", index=False)
+    pd.DataFrame({"strategia": eq, "buy_and_hold": bh}).to_csv(out / "equity.csv")
+=======
+
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(b.trades).to_csv(out / "trades.csv", index=False)
+    pd.DataFrame({"strategia": eq, "buy_and_hold": bh}).to_csv(out / "equity.csv")
+>>>>>>> NEW
+#==== PATCH: run_paper.py sha256=c159f01c745f3cf126100e967a090d3f502b54d8d7a9a299bbc7b81c8b2abf26
+<<<<<<< OLD
+from bot import data as dmod
+from bot.broker import PaperBroker
+from bot.config import load_config, resolve
+from bot.engine import Engine, load_blackout
+from run_backtest import make_broker
+=======
+from bot import data as dmod
+from bot.broker import PaperBroker
+from bot.config import load_config, resolve, tactical_cfg
+from bot.engine import Engine, load_blackout
+from run_backtest import make_broker
+>>>>>>> NEW
+<<<<<<< OLD
+    append_csv(journal / "equity.csv", [{"date": d, "equity": e} for d, e in broker.equity_curve[-len(todo):]])
+    report = status(broker)
+    (journal / "ultimo_report.txt").write_text(report, encoding="utf-8")
+    print(report)
+=======
+    append_csv(journal / "equity.csv", [{"date": d, "equity": e} for d, e in broker.equity_curve[-len(todo):]])
+    report = status(broker)
+
+    # conto tattico (operazioni brevi), separato dal portafoglio principale
+    tcfg = tactical_cfg(cfg)
+    if tcfg:
+        report += "\n\n=== CONTO TATTICO ===\n" + run_account(tcfg, data, cash_rate, journal, "tattica_")
+    (journal / "ultimo_report.txt").write_text(report, encoding="utf-8")
+    print(report)
+>>>>>>> NEW
+<<<<<<< OLD
+
+
+if __name__ == "__main__":
+    main()
+=======
+
+
+def run_account(cfg, data, cash_rate, journal, prefix) -> str:
+    """Esegue un conto aggiuntivo con il suo file di stato. Ritorna il suo stato in testo."""
+    sp = resolve(cfg, cfg["state_file"])
+    b = PaperBroker.load(sp) if sp.exists() else None
+    first = b is None
+    if first:
+        b = make_broker(cfg)
+        log.info("Nuovo conto tattico virtuale: %.2f", b.cash)
+    sub = {t: data[t] for t in cfg["universe"] if t in data}
+    if set(b.positions) - set(sub):
+        log.error("Conto tattico: mancano dati di posizioni aperte, nessuna modifica.")
+        return status(b)
+    eng = Engine(cfg, sub, b, load_blackout(resolve(cfg, cfg["blackout_file"])), cash_rate)
+    cal = eng.calendar()
+    todo = cal[-1:] if first else cal[cal > pd.Timestamp(b.last_processed)]
+    nf, nt = len(b.fills), len(b.trades)
+    for d in todo:
+        for ev in eng.step(d):
+            log.info("tattica: %s", ev)
+    if len(todo):
+        b.save(sp)
+        append_csv(journal / f"{prefix}fills.csv", b.fills[nf:])
+        append_csv(journal / f"{prefix}trades_closed.csv", b.trades[nt:])
+    return status(b)
+
+
+if __name__ == "__main__":
+    main()
+>>>>>>> NEW
+#==== PATCH: make_dashboard.py sha256=91daf25aedcae09dff93b074baaec33e0f60057bef960ecbf201daf6a9840142
+<<<<<<< OLD
+from zoneinfo import ZoneInfo
+
+from bot.config import load_config, resolve
+
+NAMES = {"SPY": "Azioni USA", "QQQ": "Nasdaq 100", "IWM": "Small cap USA", "EFA": "Azioni Europa/Giappone",
+=======
+from zoneinfo import ZoneInfo
+
+from bot.config import load_config, resolve, tactical_cfg
+
+NAMES = {"SPY": "Azioni USA", "QQQ": "Nasdaq 100", "IWM": "Small cap USA", "EFA": "Azioni Europa/Giappone",
+>>>>>>> NEW
+<<<<<<< OLD
+Capitale iniziale {fmt(cap, 0)} {cur} · Portafoglio VIRTUALE, nessun soldo vero.</div>'''
+
+    page = f'''<!DOCTYPE html>
+<html lang="it"><head>
+=======
+Capitale iniziale {fmt(cap, 0)} {cur} · Portafoglio VIRTUALE, nessun soldo vero.</div>'''
+
+    tcfg = tactical_cfg(cfg)
+    if state is not None and tcfg:
+        tp = resolve(tcfg, tcfg["state_file"])
+        if tp.exists():
+            ts = json.loads(tp.read_text(encoding="utf-8"))
+            teq = equity(ts)
+            tcap = tcfg["portfolio"]["initial_capital"]
+            tpos = "".join(f'<li><b>{t}</b> x{p["qty"]:g} <span class="muted">carico {fmt(p["entry_price"])}</span></li>'
+                           for t, p in ts["positions"].items()) or '<li class="muted">nessuna posizione aperta</li>'
+            tpend = "".join(f'<li>{o["side"]} <b>{o["ticker"]}</b> x{o["qty"]:g} <span class="muted">({html.escape(o["reason"])})</span></li>'
+                            for o in ts["pending"])
+            closed = ts.get("trades", [])
+            wins = sum(1 for t in closed if t["pnl"] > 0)
+            body += f'''
+<div class="card"><h2>Conto tattico (operazioni brevi)</h2>
+  <div class="big" style="font-size:22px">{fmt(teq)} <small>{cur}</small></div>
+  <div class="muted small">Da inizio {100 * (teq / tcap - 1):+.2f}% · operazioni chiuse {len(closed)}{f" · vinte {round(100 * wins / len(closed))}%" if closed else ""}</div>
+  <ul style="margin-top:8px">{tpos}{tpend}</ul>
+</div>'''
+
+    page = f'''<!DOCTYPE html>
+<html lang="it"><head>
+>>>>>>> NEW
+#==== PATCH: config.json sha256=e70213a6aa478b1030fcfbb1ba463ab3004ff40167223c9de8977014e0cc8287
+<<<<<<< OLD
+  "state_file": "state/paper_state.json",
+  "journal_dir": "state",
+  "process_today_after_hour_rome": 23
+}
+=======
+  "state_file": "state/paper_state.json",
+  "journal_dir": "state",
+  "process_today_after_hour_rome": 23,
+  "tactical": {
+    "enabled": false,
+    "_nota": "conto virtuale separato per operazioni brevi; si attiva solo se il backtest migliora il risultato",
+    "initial_capital": 10000.0,
+    "universe": [
+      "SPY",
+      "QQQ",
+      "IWM"
+    ],
+    "state_file": "state/tactical_state.json",
+    "strategy": {
+      "rsi_entry": 10,
+      "max_hold_days": 5,
+      "turn_of_month": true,
+      "turn_of_month_tickers": [
+        "SPY"
+      ]
+    }
+  }
+}
+>>>>>>> NEW
