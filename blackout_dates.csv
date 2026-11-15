@@ -1,0 +1,4 @@
+# Date in cui il bot NON apre nuove posizioni (le posizioni aperte e gli stop restano attivi).
+# Una riga per data, formato AAAA-MM-GG. Esempi: riunioni FOMC, BCE, dati CPI e NFP americani.
+# Prendile dal calendario di Investing.com o dal sito della Fed e aggiornale una volta al mese.
+date

@@ -1,0 +1,75 @@
+{
+ "cash": 50000.0,
+ "commission_pct": 0.001,
+ "commission_min": 1.0,
+ "slippage_pct": 0.0005,
+ "fractional": false,
+ "positions": {},
+ "pending": [
+  {
+   "ticker": "DBC",
+   "side": "BUY",
+   "qty": 272.0,
+   "created": "2026-11-13",
+   "reason": "rotazione: entra",
+   "stop": 0.0,
+   "risk_amt": 0.0,
+   "add": false
+  },
+  {
+   "ticker": "EFA",
+   "side": "BUY",
+   "qty": 95.0,
+   "created": "2026-11-13",
+   "reason": "rotazione: entra",
+   "stop": 0.0,
+   "risk_amt": 0.0,
+   "add": false
+  },
+  {
+   "ticker": "VNQ",
+   "side": "BUY",
+   "qty": 103.0,
+   "created": "2026-11-13",
+   "reason": "rotazione: entra",
+   "stop": 0.0,
+   "risk_amt": 0.0,
+   "add": false
+  },
+  {
+   "ticker": "SPY",
+   "side": "BUY",
+   "qty": 13.0,
+   "created": "2026-11-13",
+   "reason": "rotazione: entra",
+   "stop": 0.0,
+   "risk_amt": 0.0,
+   "add": false
+  }
+ ],
+ "trades": [],
+ "fills": [],
+ "equity_curve": [
+  [
+   "2026-11-13",
+   50000.0
+  ]
+ ],
+ "last_price": {
+  "SPY": 754.3699951171875,
+  "QQQ": 679.8900146484375,
+  "IWM": 277.5400085449219,
+  "EFA": 104.16999816894531,
+  "EEM": 60.91999816894531,
+  "TLT": 79.37999725341797,
+  "IEF": 90.04000091552734,
+  "GLD": 355.45001220703125,
+  "DBC": 30.790000915527344,
+  "VNQ": 96.47000122070312
+ },
+ "peak_equity": 50000.0,
+ "halted": false,
+ "last_processed": "2026-11-13",
+ "last_rebalance": "2026-11-13",
+ "interest_earned": 0.0
+}
