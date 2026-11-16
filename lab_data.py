@@ -1,4 +1,3 @@
-#==== FILE: lab_data.py sha256=ca006290f3a665c880eb161d1dad4065753617e5cf92ee2a2bf3ea17da4aa6e5
 """Dati per il Laboratorio (docs/lab_data.json): ultime candele giornaliere CHIUSE dei 18 ETF
 e pattern delle candele riconosciuti con definizioni fisse, uguali ogni giorno.
 
