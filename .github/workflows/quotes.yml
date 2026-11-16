@@ -1,0 +1,44 @@
+name: Prezzi in diretta
+
+on:
+  schedule:
+    # ogni 15 minuti durante la seduta USA (in UTC; copre ora solare e legale)
+    - cron: "*/15 13-21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paperbot
+  cancel-in-progress: false
+
+jobs:
+  quotes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installa dipendenze
+        run: pip install pandas numpy yfinance
+
+      - name: Scarica i prezzi
+        run: python live_quotes.py
+
+      - name: Pubblica i prezzi
+        run: |
+          git config user.name "paperbot"
+          git config user.email "paperbot@users.noreply.github.com"
+          git add docs/live.json
+          if git diff --cached --quiet; then
+            echo "Prezzi invariati"
+          else
+            git commit -q -m "Prezzi in diretta $(date -u +'%H:%M') UTC"
+            git pull -q --rebase && git push -q
+          fi
