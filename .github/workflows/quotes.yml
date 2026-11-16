@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main  # sempre l'ultima versione, anche se l'esecuzione era rimasta in coda
 
       - uses: actions/setup-python@v5
         with:
@@ -44,5 +46,9 @@ jobs:
             echo "Prezzi invariati"
           else
             git commit -q -m "Prezzi e candele $(date -u +'%H:%M') UTC"
-            git pull -q --rebase && git push -q
+            for i in 1 2 3; do
+              git pull -q --rebase -X theirs origin main && git push -q && break
+              echo "push rifiutato, nuovo tentativo"; sleep 5
+            done
+            [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "::error::salvataggio non riuscito"; exit 1; }
           fi
