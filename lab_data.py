@@ -13,6 +13,68 @@ import pandas as pd
 UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "TLT", "GLD", "USO",
             "XLE", "XLF", "XLK", "XLV", "XLI", "XLY", "XLP", "XLU", "SMH"]
 
+# Quadro di mercato prima dell'apertura USA: futures e mercati che trattano di notte o al mattino
+MARKET = {"ES=F": "future S&P 500", "NQ=F": "future Nasdaq 100", "RTY=F": "future Russell 2000",
+          "^VIX": "VIX (paura)", "^STOXX50E": "Euro Stoxx 50", "^N225": "Nikkei 225",
+          "^TNX": "rendimento Treasury 10 anni", "CL=F": "petrolio WTI", "GC=F": "oro", "DX-Y.NYB": "dollaro (DXY)"}
+
+
+def rsi(close: pd.Series, n: int) -> float:
+    d = close.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
+    v = 100 - 100 / (1 + up.iloc[-1] / dn.iloc[-1]) if dn.iloc[-1] > 0 else 100.0
+    return round(float(v), 1)
+
+
+def indicators(df: pd.DataFrame) -> dict:
+    """Contesto oggettivo dell'ultima candela chiusa. Stesse formule ogni giorno."""
+    c, h, l, o = df["Close"], df["High"], df["Low"], df["Open"]
+    prev = c.shift(1)
+    tr = pd.concat([h - l, (h - prev).abs(), (l - prev).abs()], axis=1).max(axis=1)
+    atr14 = tr.ewm(alpha=1 / 14, adjust=False).mean().iloc[-1]
+    hi20, lo20 = h.tail(20).max(), l.tail(20).min()
+    out = {
+        "rsi14": rsi(c, 14),
+        "rsi2": rsi(c, 2),
+        "atr_pct": round(float(100 * atr14 / c.iloc[-1]), 2),
+        "gap_pct": round(float(100 * (o.iloc[-1] / c.iloc[-2] - 1)), 2),
+        "ret_5g_pct": round(float(100 * (c.iloc[-1] / c.iloc[-6] - 1)), 2),
+        "posizione_range20": round(float((c.iloc[-1] - lo20) / (hi20 - lo20)), 2) if hi20 > lo20 else 0.5,
+        "sopra_media50": bool(c.iloc[-1] > c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else None,
+        "sopra_media200": bool(c.iloc[-1] > c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else None,
+    }
+    if "Volume" in df and df["Volume"].tail(21).gt(0).all():
+        out["volume_relativo"] = round(float(df["Volume"].iloc[-1] / df["Volume"].iloc[-21:-1].mean()), 2)
+    return out
+
+
+def market_snapshot() -> dict:
+    """Variazione di ogni mercato rispetto alla sua ultima chiusura, al momento dell'esecuzione."""
+    import yfinance as yf
+    out = {}
+    for t, name in MARKET.items():
+        try:
+            d = yf.Ticker(t).history(period="10d", interval="1d", auto_adjust=False)
+            m = yf.Ticker(t).history(period="2d", interval="15m", auto_adjust=False)
+        except Exception as e:
+            print("errore", t, e)
+            continue
+        if d is None or len(d) < 2:
+            continue
+        last = float(m["Close"].iloc[-1]) if m is not None and not m.empty else float(d["Close"].iloc[-1])
+        day = d.index[-1]
+        today = pd.Timestamp.now(tz=day.tz).date() if day.tz is not None else pd.Timestamp.now().date()
+        # seduta di oggi già iniziata: confronto con la chiusura precedente; altrimenti con l'ultima chiusura
+        traded_today = day.date() == today
+        ref = float(d["Close"].iloc[-2]) if traded_today else float(d["Close"].iloc[-1])
+        out[t] = {"nome": name, "ultimo": round(last, 3), "variazione_pct": round(100 * (last / ref - 1), 2),
+                  "seduta_di_oggi": traded_today,
+                  "ora": (m.index[-1] if m is not None and not m.empty else day).strftime("%Y-%m-%d %H:%M %Z")}
+        if t == "^VIX":
+            out[t]["variazione_5g_pct"] = round(100 * (float(d["Close"].iloc[-1]) / float(d["Close"].iloc[-6]) - 1), 2) if len(d) >= 6 else None
+    return out
+
 
 def patterns(df: pd.DataFrame) -> list[dict]:
     """Pattern sull'ultima candela di df (colonne Open, High, Low, Close; almeno 25 righe)."""
@@ -72,23 +134,32 @@ def main():
     last_days = set()
     for t in UNIVERSE:
         try:
-            df = yf.Ticker(t).history(period="4mo", interval="1d", auto_adjust=False)
+            df = yf.Ticker(t).history(period="14mo", interval="1d", auto_adjust=False)
         except Exception as e:
             print("errore", t, e)
             continue
         if df is None or df.empty:
             continue
         df.index = pd.to_datetime(df.index).tz_convert("America/New_York")
-        df = closed_bars(df[["Open", "High", "Low", "Close"]].dropna(), now_ny)
+        df = closed_bars(df[["Open", "High", "Low", "Close", "Volume"]].dropna(), now_ny)
         if len(df) < 25:
             continue
         sma20 = float(df["Close"].rolling(20).mean().iloc[-1])
         bars = [[ix.strftime("%Y-%m-%d")] + [round(float(v), 4) for v in row]
-                for ix, row in df.tail(10).iterrows()]
+                for ix, row in df[["Open", "High", "Low", "Close"]].tail(10).iterrows()]
         last_days.add(bars[-1][0])
         out["tickers"][t] = {"candele": bars, "media20": round(sma20, 4),
-                             "sopra_media20": bool(df["Close"].iloc[-1] > sma20), "pattern": patterns(df)}
+                             "sopra_media20": bool(df["Close"].iloc[-1] > sma20), "pattern": patterns(df),
+                             "indicatori": indicators(df)}
     out["ultima_candela_chiusa"] = max(last_days) if last_days else None
+    tk = out["tickers"].values()
+    out["ampiezza_mercato"] = {
+        "pct_sopra_media50": round(100 * sum(1 for v in tk if v["indicatori"]["sopra_media50"]) / max(1, len(tk))),
+        "pct_sopra_media20": round(100 * sum(1 for v in tk if v["sopra_media20"]) / max(1, len(tk)))}
+    try:
+        out["mercato_pre_apertura"] = market_snapshot()
+    except Exception as e:  # il quadro di mercato è un extra: non deve bloccare le candele
+        print("quadro di mercato non disponibile:", e)
     docs = Path(__file__).resolve().parent / "docs"
     docs.mkdir(exist_ok=True)
     (docs / "lab_data.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
