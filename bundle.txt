@@ -1,0 +1,100 @@
+#==== FILE: lab_data.py sha256=ca006290f3a665c880eb161d1dad4065753617e5cf92ee2a2bf3ea17da4aa6e5
+"""Dati per il Laboratorio (docs/lab_data.json): ultime candele giornaliere CHIUSE dei 18 ETF
+e pattern delle candele riconosciuti con definizioni fisse, uguali ogni giorno.
+
+Gira insieme ai prezzi in diretta. Il briefing delle 14:47 legge questo file invece di
+scaricare i prezzi da solo (dal cloud Yahoo e Stooq spesso lo bloccano).
+"""
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pandas as pd
+
+UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "EFA", "EEM", "TLT", "GLD", "USO",
+            "XLE", "XLF", "XLK", "XLV", "XLI", "XLY", "XLP", "XLU", "SMH"]
+
+
+def patterns(df: pd.DataFrame) -> list[dict]:
+    """Pattern sull'ultima candela di df (colonne Open, High, Low, Close; almeno 25 righe)."""
+    if len(df) < 25:
+        return []
+    o, h, l, c = (df[k].to_numpy() for k in ("Open", "High", "Low", "Close"))
+    sma20 = df["Close"].rolling(20).mean().iloc[-1]
+    up_trend = c[-1] > sma20
+    body = abs(c - o)
+    rng = h - l
+    upper = h - pd.Series(o).combine(pd.Series(c), max).to_numpy()
+    lower = pd.Series(o).combine(pd.Series(c), min).to_numpy() - l
+    avg_body = body[-11:-1].mean()
+    bull = c > o
+    bear = c < o
+    out = []
+
+    def add(name, direction):
+        out.append({"pattern": name, "direzione_attesa": direction})
+
+    if rng[-1] > 0 and body[-1] <= 0.1 * rng[-1]:
+        add("doji", "rialzo" if up_trend else "ribasso")
+    if body[-1] > 0 and lower[-1] >= 2 * body[-1] and upper[-1] <= body[-1] and not up_trend:
+        add("hammer", "rialzo")
+    if body[-1] > 0 and upper[-1] >= 2 * body[-1] and lower[-1] <= body[-1] and up_trend:
+        add("shooting star", "ribasso")
+    if bear[-2] and bull[-1] and o[-1] <= c[-2] and c[-1] >= o[-2] and body[-1] > body[-2]:
+        add("engulfing rialzista", "rialzo")
+    if bull[-2] and bear[-1] and o[-1] >= c[-2] and c[-1] <= o[-2] and body[-1] > body[-2]:
+        add("engulfing ribassista", "ribasso")
+    if bear[-3] and body[-3] > avg_body and body[-2] < 0.3 * body[-3] and bull[-1] and c[-1] > (o[-3] + c[-3]) / 2:
+        add("morning star", "rialzo")
+    if bull[-3] and body[-3] > avg_body and body[-2] < 0.3 * body[-3] and bear[-1] and c[-1] < (o[-3] + c[-3]) / 2:
+        add("evening star", "ribasso")
+    if all(bull[-3:]) and c[-1] > c[-2] > c[-3] and o[-3] < o[-2] <= c[-3] and o[-2] < o[-1] <= c[-2]:
+        add("three white soldiers", "rialzo")
+    if all(bear[-3:]) and c[-1] < c[-2] < c[-3] and c[-3] <= o[-2] < o[-3] and c[-2] <= o[-1] < o[-2]:
+        add("three black crows", "ribasso")
+    if h[-1] < h[-2] and l[-1] > l[-2]:
+        add("inside bar", "rialzo" if up_trend else "ribasso")
+    return out
+
+
+def closed_bars(df: pd.DataFrame, now_ny: pd.Timestamp) -> pd.DataFrame:
+    """Toglie la candela di oggi se la seduta non è ancora chiusa (16:00 New York + margine)."""
+    if len(df) and df.index[-1].date() == now_ny.date() and (now_ny.hour, now_ny.minute) < (16, 15):
+        return df.iloc[:-1]
+    return df
+
+
+def main():
+    import yfinance as yf
+    now_ny = pd.Timestamp.now(tz="America/New_York")
+    out = {"aggiornato_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "nota": "candele giornaliere chiuse (prezzi non rettificati), pattern calcolati sull'ultima candela chiusa",
+           "tickers": {}}
+    last_days = set()
+    for t in UNIVERSE:
+        try:
+            df = yf.Ticker(t).history(period="4mo", interval="1d", auto_adjust=False)
+        except Exception as e:
+            print("errore", t, e)
+            continue
+        if df is None or df.empty:
+            continue
+        df.index = pd.to_datetime(df.index).tz_convert("America/New_York")
+        df = closed_bars(df[["Open", "High", "Low", "Close"]].dropna(), now_ny)
+        if len(df) < 25:
+            continue
+        sma20 = float(df["Close"].rolling(20).mean().iloc[-1])
+        bars = [[ix.strftime("%Y-%m-%d")] + [round(float(v), 4) for v in row]
+                for ix, row in df.tail(10).iterrows()]
+        last_days.add(bars[-1][0])
+        out["tickers"][t] = {"candele": bars, "media20": round(sma20, 4),
+                             "sopra_media20": bool(df["Close"].iloc[-1] > sma20), "pattern": patterns(df)}
+    out["ultima_candela_chiusa"] = max(last_days) if last_days else None
+    docs = Path(__file__).resolve().parent / "docs"
+    docs.mkdir(exist_ok=True)
+    (docs / "lab_data.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print("ticker:", len(out["tickers"]), "ultima candela:", out["ultima_candela_chiusa"])
+
+
+if __name__ == "__main__":
+    main()
