@@ -1,0 +1,5 @@
+date,ticker,side,qty,price,fee,reason
+2026-11-16,DBC,BUY,272.0,30.4652,8.29,rotazione: entra
+2026-11-16,EFA,BUY,95.0,103.7719,9.86,rotazione: entra
+2026-11-16,VNQ,BUY,103.0,96.8584,9.98,rotazione: entra
+2026-11-16,SPY,BUY,13.0,750.0348,9.75,rotazione: entra

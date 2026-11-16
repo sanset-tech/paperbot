@@ -1,75 +1,108 @@
 {
- "cash": 50000.0,
+ "cash": 12094.49127590997,
  "commission_pct": 0.001,
  "commission_min": 1.0,
  "slippage_pct": 0.0005,
  "fractional": false,
- "positions": {},
- "pending": [
+ "positions": {
+  "DBC": {
+   "ticker": "DBC",
+   "qty": 272.0,
+   "entry_price": 30.46522576332092,
+   "entry_date": "2026-11-16",
+   "stop": 0.0,
+   "entry_cost": 8.28654140762329
+  },
+  "EFA": {
+   "ticker": "EFA",
+   "qty": 95.0,
+   "entry_price": 103.77186122131347,
+   "entry_date": "2026-11-16",
+   "stop": 0.0,
+   "entry_cost": 9.858326816024778
+  },
+  "VNQ": {
+   "ticker": "VNQ",
+   "qty": 103.0,
+   "entry_price": 96.85840255737304,
+   "entry_date": "2026-11-16",
+   "stop": 0.0,
+   "entry_cost": 9.976415463409424
+  },
+  "SPY": {
+   "ticker": "SPY",
+   "qty": 13.0,
+   "entry_price": 750.0348031311034,
+   "entry_date": "2026-11-16",
+   "stop": 0.0,
+   "entry_cost": 9.750452440704345
+  }
+ },
+ "pending": [],
+ "trades": [],
+ "fills": [
   {
+   "date": "2026-11-16",
    "ticker": "DBC",
    "side": "BUY",
    "qty": 272.0,
-   "created": "2026-11-13",
-   "reason": "rotazione: entra",
-   "stop": 0.0,
-   "risk_amt": 0.0,
-   "add": false
+   "price": 30.4652,
+   "fee": 8.29,
+   "reason": "rotazione: entra"
   },
   {
+   "date": "2026-11-16",
    "ticker": "EFA",
    "side": "BUY",
    "qty": 95.0,
-   "created": "2026-11-13",
-   "reason": "rotazione: entra",
-   "stop": 0.0,
-   "risk_amt": 0.0,
-   "add": false
+   "price": 103.7719,
+   "fee": 9.86,
+   "reason": "rotazione: entra"
   },
   {
+   "date": "2026-11-16",
    "ticker": "VNQ",
    "side": "BUY",
    "qty": 103.0,
-   "created": "2026-11-13",
-   "reason": "rotazione: entra",
-   "stop": 0.0,
-   "risk_amt": 0.0,
-   "add": false
+   "price": 96.8584,
+   "fee": 9.98,
+   "reason": "rotazione: entra"
   },
   {
+   "date": "2026-11-16",
    "ticker": "SPY",
    "side": "BUY",
    "qty": 13.0,
-   "created": "2026-11-13",
-   "reason": "rotazione: entra",
-   "stop": 0.0,
-   "risk_amt": 0.0,
-   "add": false
+   "price": 750.0348,
+   "fee": 9.75,
+   "reason": "rotazione: entra"
   }
  ],
- "trades": [],
- "fills": [],
  "equity_curve": [
   [
    "2026-11-13",
    50000.0
+  ],
+  [
+   "2026-11-16",
+   49604.33
   ]
  ],
  "last_price": {
-  "SPY": 754.3699951171875,
-  "QQQ": 679.8900146484375,
-  "IWM": 277.5400085449219,
-  "EFA": 104.16999816894531,
-  "EEM": 60.91999816894531,
+  "SPY": 739.9500122070312,
+  "QQQ": 661.75,
+  "IWM": 272.94000244140625,
+  "EFA": 102.63999938964844,
+  "EEM": 58.88999938964844,
   "TLT": 79.37999725341797,
-  "IEF": 90.04000091552734,
-  "GLD": 355.45001220703125,
-  "DBC": 30.790000915527344,
-  "VNQ": 96.47000122070312
+  "IEF": 90.23999786376953,
+  "GLD": 352.92999267578125,
+  "DBC": 30.25,
+  "VNQ": 96.2300033569336
  },
  "peak_equity": 50000.0,
  "halted": false,
- "last_processed": "2026-11-13",
+ "last_processed": "2026-11-16",
  "last_rebalance": "2026-11-13",
- "interest_earned": 0.0
+ "interest_earned": 4.099139799571676
 }
