@@ -60,6 +60,8 @@ def market_snapshot() -> dict:
         except Exception as e:
             print("errore", t, e)
             continue
+        d = d.dropna(subset=["Close"]) if d is not None else d
+        m = m.dropna(subset=["Close"]) if m is not None else m
         if d is None or len(d) < 2:
             continue
         last = float(m["Close"].iloc[-1]) if m is not None and not m.empty else float(d["Close"].iloc[-1])
@@ -118,6 +120,17 @@ def patterns(df: pd.DataFrame) -> list[dict]:
     return out
 
 
+def clean_nan(x):
+    """Il JSON non ammette NaN: i valori mancanti diventano null."""
+    if isinstance(x, dict):
+        return {k: clean_nan(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [clean_nan(v) for v in x]
+    if isinstance(x, float) and x != x:
+        return None
+    return x
+
+
 def closed_bars(df: pd.DataFrame, now_ny: pd.Timestamp) -> pd.DataFrame:
     """Toglie la candela di oggi se la seduta non è ancora chiusa (16:00 New York + margine)."""
     if len(df) and df.index[-1].date() == now_ny.date() and (now_ny.hour, now_ny.minute) < (16, 15):
@@ -162,7 +175,7 @@ def main():
         print("quadro di mercato non disponibile:", e)
     docs = Path(__file__).resolve().parent / "docs"
     docs.mkdir(exist_ok=True)
-    (docs / "lab_data.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (docs / "lab_data.json").write_text(json.dumps(clean_nan(out), ensure_ascii=False, separators=(",", ":"), allow_nan=False), encoding="utf-8")
     print("ticker:", len(out["tickers"]), "ultima candela:", out["ultima_candela_chiusa"])
 
 
