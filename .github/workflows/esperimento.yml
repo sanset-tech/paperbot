@@ -1,0 +1,62 @@
+name: Esperimento
+
+# Confronta la versione attuale (main) con una versione di prova (un branch)
+# sugli stessi dati reali. Non tocca lo stato del bot e non salva nulla nel repository:
+# il risultato è nel riepilogo dell'esecuzione e nell'allegato "confronto".
+
+on:
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: "Branch con la modifica da provare"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  confronto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main, path: base }
+      - uses: actions/checkout@v4
+        with: { ref: "${{ github.event.inputs.prova }}", path: prova }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: base/requirements.txt }
+      - run: pip install pandas numpy yfinance pytest
+      - name: Test della versione di prova
+        run: cd prova && python -m pytest -q tests
+      - name: Backtest sugli stessi periodi
+        run: |
+          for v in base prova; do
+            ( cd $v
+              python run_backtest.py --out ../out/$v/dal_2005 > /dev/null
+              python run_backtest.py --start 2015-01-01 --out ../out/$v/dal_2015 > /dev/null
+              python run_backtest.py --start 2021-01-01 --out ../out/$v/dal_2021 > /dev/null
+              python run_backtest.py --start 2023-11-01 --out ../out/$v/ultimi_3_anni > /dev/null )
+          done
+      - name: Confronto
+        run: |
+          python - <<'PY'
+          import json, os
+          righe, ok = [], True
+          for p in ["dal_2005", "dal_2015", "dal_2021", "ultimi_3_anni"]:
+              b = json.load(open(f"out/base/{p}/report.json"))["strategia"]
+              n = json.load(open(f"out/prova/{p}/report.json"))["strategia"]
+              meglio = n["sharpe"] > b["sharpe"] and n["max_drawdown_%"] >= b["max_drawdown_%"] - 1.0
+              ok &= meglio
+              righe.append({"periodo": p, "sharpe_base": b["sharpe"], "sharpe_prova": n["sharpe"],
+                            "cagr_base": b["CAGR_%"], "cagr_prova": n["CAGR_%"],
+                            "maxdd_base": b["max_drawdown_%"], "maxdd_prova": n["max_drawdown_%"],
+                            "migliora": bool(meglio)})
+          res = {"prova": os.environ["PROVA"], "approvabile_secondo_governance": bool(ok), "periodi": righe}
+          json.dump(res, open("out/confronto.json", "w"), indent=1)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("```json\n" + json.dumps(res, indent=1) + "\n```\n")
+          print(json.dumps(res, indent=1))
+          PY
+        env: { PROVA: "${{ github.event.inputs.prova }}" }
+      - uses: actions/upload-artifact@v4
+        with: { name: confronto, path: out/ }

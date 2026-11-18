@@ -11,4 +11,6 @@ cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole
   agli orari tondi.
 - **Test nel repository** (`tests/test_core.py`, 24 test) e workflow `Test` a ogni modifica del codice,
   così ogni correzione automatica viene verificata anche su GitHub.
-- Annullare: `git revert` di questo commit.
+- **Workflow `Esperimento`**: confronta main con un branch di prova sugli stessi dati (dal 2005, 2015, 2021
+  e ultimi 3 anni come verifica fuori campione) e dice se la modifica rispetta la governance. Non tocca lo stato.
+- Annullare: `git revert` dei commit del 18/11.
