@@ -2,8 +2,11 @@ name: Prezzi in diretta
 
 on:
   schedule:
-    # ogni 15 minuti durante la seduta USA (in UTC; copre ora solare e legale)
-    - cron: "*/15 13-21 * * 1-5"
+    # Minuti "dispari" (non :00/:15/:30/:45): GitHub rinvia o salta spesso le
+    # esecuzioni a orari tondi. Seduta USA ogni 15 min (UTC, copre ora solare e legale).
+    - cron: "7,22,37,52 13-21 * * 1-5"
+    # Pre-apertura ridondante: il briefing (13:47 UTC) deve trovare futures freschi
+    - cron: "3,33 12 * * 1-5"
   workflow_dispatch:
 
 permissions:

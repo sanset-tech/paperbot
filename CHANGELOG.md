@@ -1,0 +1,14 @@
+# Registro modifiche
+
+Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
+cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
+
+## 2026-11-18 — tecnica
+- **Prezzi in diretta**: cron spostati a minuti non tondi (`7,22,37,52 13-21`) e aggiunti due giri di
+  pre-apertura (`3,33 12`). Motivo: diagnosi 17/11, solo 8 esecuzioni su 36 e prima esecuzione alle
+  14:12 UTC, dopo il briefing delle 13:47 → futures vecchi nel briefing.
+- **Paperbot**: cron `7 22`, `41 23`, `7 6` (prima `15 22`, `45 23`, `15 6`). Motivo: ritardo medio 53 min
+  agli orari tondi.
+- **Test nel repository** (`tests/test_core.py`, 24 test) e workflow `Test` a ogni modifica del codice,
+  così ogni correzione automatica viene verificata anche su GitHub.
+- Annullare: `git revert` di questo commit.

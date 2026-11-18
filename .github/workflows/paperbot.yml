@@ -3,10 +3,10 @@ name: Paperbot
 on:
   schedule:
     # Orari in UTC. 22:15 UTC = 23:15 in Italia d'inverno (00:15 d'estate): dopo la chiusura di Wall Street.
-    - cron: "15 22 * * 1-5"
+    - cron: "7 22 * * 1-5"
     # Tentativi di riserva: se il primo fallisce (Yahoo non risponde) recuperano; se è andato bene non fanno nulla.
-    - cron: "45 23 * * 1-5"
-    - cron: "15 6 * * 2-6"
+    - cron: "41 23 * * 1-5"
+    - cron: "7 6 * * 2-6"
   workflow_dispatch:
     inputs:
       azione:
