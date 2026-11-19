@@ -9,3 +9,6 @@
 2026-11-18 07:28:52,679 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-17).
 2026-11-19 00:33:01,575 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-18).
 2026-11-19 07:18:39,711 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-18).
+2026-11-19 10:13:41,607 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-18).
+2026-11-19 10:13:41,785 [WARNING] Alpaca: posizioni diverse dal simulatore: {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}
+2026-11-19 10:13:41,787 [WARNING] Alpaca: ATTENZIONE posizioni diverse dal simulatore {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}

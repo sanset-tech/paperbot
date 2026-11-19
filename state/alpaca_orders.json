@@ -1,0 +1,25 @@
+{
+ "ordini": {},
+ "riconciliazione": {
+  "utc": "2026-11-19 10:13:41",
+  "ultimo_giorno_simulato": "2026-11-18",
+  "differenze": {
+   "DBC": {
+    "simulatore": 272,
+    "alpaca": 0
+   },
+   "EFA": {
+    "simulatore": 95,
+    "alpaca": 0
+   },
+   "SPY": {
+    "simulatore": 13,
+    "alpaca": 0
+   },
+   "VNQ": {
+    "simulatore": 103,
+    "alpaca": 0
+   }
+  }
+ }
+}
