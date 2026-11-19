@@ -75,7 +75,7 @@ jobs:
           cache: pip
 
       - name: Installa dipendenze
-        run: pip install pandas numpy yfinance
+        run: pip install pandas numpy yfinance alpaca-py
 
       - name: Riattiva dopo kill switch
         if: github.event.inputs.azione == 'riattiva_dopo_kill_switch'
@@ -93,6 +93,9 @@ jobs:
         id: bot
         if: github.event.inputs.azione != 'aggiorna_solo_dashboard' && github.event.inputs.azione != 'backtest'
         continue-on-error: true
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python run_paper.py
 
       - name: Aggiorna dashboard
