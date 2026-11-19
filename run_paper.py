@@ -12,6 +12,10 @@ Uso:
   python run_paper.py --status     # mostra il portafoglio senza fare nulla
   python run_paper.py --reset      # azzera il portafoglio virtuale (chiede conferma)
   python run_paper.py --unhalt     # riattiva dopo il kill switch (solo dopo aver capito cosa è successo)
+
+Conto ombra Alpaca (solo paper, facoltativo): con "alpaca.enabled" in config.json e le variabili
+d'ambiente ALPACA_API_KEY / ALPACA_SECRET_KEY, gli ordini in coda vengono replicati su Alpaca
+DOPO il salvataggio dello stato (vedi bot/alpaca_bridge.py). Senza chiavi: solo simulazione interna.
 """
 import argparse
 import csv
@@ -24,6 +28,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from bot import data as dmod
+from bot.alpaca_bridge import sync_account
 from bot.broker import PaperBroker
 from bot.config import load_config, resolve, tactical_cfg
 from bot.engine import Engine, load_blackout
@@ -66,6 +71,14 @@ def status(b: PaperBroker) -> str:
     if not b.pending:
         lines.append("  (nessuno)")
     return "\n".join(lines)
+
+
+def alpaca_sync(cfg, broker, account) -> str:
+    """Replica gli ordini in coda sul conto paper di Alpaca. Mai bloccante: lo stato è già salvato."""
+    events = sync_account(cfg, broker, account, resolve)
+    for ev in events:
+        (log.error if "ERRORE" in ev else log.warning if "ATTENZIONE" in ev else log.info)(ev)
+    return ("\n" + "\n".join(events)) if events else ""
 
 
 def append_csv(path: Path, rows: list[dict]):
@@ -147,6 +160,7 @@ def main():
         todo = cal[cal > pd.Timestamp(broker.last_processed)]
     if len(todo) == 0:
         log.info("Nessuna nuova barra chiusa da processare (ultima: %s).", broker.last_processed)
+        alpaca_sync(cfg, broker, "main")  # ritenta gli invii falliti; i doppioni sono bloccati
         print(status(broker))
         return
 
@@ -159,7 +173,7 @@ def main():
     append_csv(journal / "fills.csv", broker.fills[n_fills:])
     append_csv(journal / "trades_closed.csv", broker.trades[n_trades:])
     append_csv(journal / "equity.csv", [{"date": d, "equity": e} for d, e in broker.equity_curve[-len(todo):]])
-    report = status(broker)
+    report = status(broker) + alpaca_sync(cfg, broker, "main")
 
     # conto tattico (operazioni brevi), separato dal portafoglio principale
     tcfg = tactical_cfg(cfg)
@@ -192,7 +206,7 @@ def run_account(cfg, data, cash_rate, journal, prefix) -> str:
         b.save(sp)
         append_csv(journal / f"{prefix}fills.csv", b.fills[nf:])
         append_csv(journal / f"{prefix}trades_closed.csv", b.trades[nt:])
-    return status(b)
+    return status(b) + alpaca_sync(cfg, b, "tattica")
 
 
 if __name__ == "__main__":

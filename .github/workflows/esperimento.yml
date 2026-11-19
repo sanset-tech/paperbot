@@ -25,7 +25,7 @@ jobs:
         with: { ref: "${{ github.event.inputs.prova }}", path: prova }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip, cache-dependency-path: base/requirements.txt }
-      - run: pip install pandas numpy yfinance pytest
+      - run: pip install pandas numpy yfinance alpaca-py pytest
       - name: Test della versione di prova
         run: cd prova && python -m pytest -q tests
       - name: Backtest sugli stessi periodi

@@ -81,5 +81,16 @@
         "SPY"
       ]
     }
+  },
+  "alpaca": {
+    "enabled": true,
+    "accounts": [
+      "main"
+    ],
+    "time_in_force": "gtc",
+    "take_profit_r": null,
+    "stop_emergenza_pct": null,
+    "ledger_file": "state/alpaca_orders.json",
+    "max_tentativi": 3
   }
 }
