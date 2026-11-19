@@ -227,3 +227,54 @@ def test_sync_account_non_solleva_mai(tmp_path, monkeypatch):
 def test_conto_non_elencato_ignorato(tmp_path):
     assert ab.sync_account(cfg(), broker_with([]), "tattica", lambda c, p: tmp_path / p) == []
     assert ab.sync_account(cfg(enabled=False), broker_with([]), "main", lambda c, p: tmp_path / p) == []
+
+
+def _pos():
+    return {"DBC": Position("DBC", 272, 23.0, "2026-11-16", 0.0), "EFA": Position("EFA", 95, 90.0, "2026-11-16", 0.0),
+            "SPY": Position("SPY", 13, 750.0, "2026-11-16", 0.0), "VNQ": Position("VNQ", 103, 90.0, "2026-11-16", 0.0)}
+
+
+def test_allineamento_una_sola_volta(tmp_path):
+    c = FakeClient()
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    ev = br.sync(broker_with([], _pos()))
+    br.ledger.save()
+    assert sorted((r.symbol, r.qty) for r in c.sent) == [("DBC", 272), ("EFA", 95), ("SPY", 13), ("VNQ", 103)]
+    assert all(r.order_class in (None, OrderClass.SIMPLE) and r.stop_loss is None for r in c.sent)  # niente stop
+    assert any("completato" in e for e in ev)
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))  # 2ª esecuzione
+    (tmp_path / "alpaca_orders.json").unlink()                                      # registro perso
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))
+    assert len(c.sent) == 4
+
+
+def test_allineamento_compra_solo_la_differenza(tmp_path):
+    c = FakeClient(positions={"SPY": 13, "DBC": 200})
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))
+    assert sorted((r.symbol, r.qty) for r in c.sent) == [("DBC", 72), ("EFA", 95), ("VNQ", 103)]
+
+
+def test_allineamento_con_errore_riprova_solo_i_mancanti(tmp_path):
+    c = FakeClient(fail=RuntimeError("500"))
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([], _pos()))
+    br.ledger.save()
+    assert br.ledger.data["allineamento"]["stato"] == "in corso"
+    c.fail = None
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([], _pos()))
+    assert len(c.sent) == 4 and br.ledger.data["allineamento"]["stato"] == "completato"
+
+
+def test_allineamento_spento_di_default(tmp_path):
+    c = FakeClient()
+    bridge(tmp_path, c, allineamento_iniziale=False).sync(broker_with([], _pos()))
+    assert c.sent == []
+
+
+def test_allineamento_rinviato_se_ordine_in_coda_sul_ticker(tmp_path):
+    c = FakeClient()
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([Order("SPY", "SELL", 13, "2026-11-18", "rotazione: esce")], _pos()))
+    assert "SPY" not in [r.symbol for r in c.sent if r.side == OrderSide.BUY]
+    assert br.ledger.data["allineamento"]["stato"] == "in corso"

@@ -32,7 +32,8 @@ log = logging.getLogger("alpaca")
 ENV_KEYS = {"main": ("ALPACA_API_KEY", "ALPACA_SECRET_KEY"),
             "tattica": ("ALPACA_TATTICA_API_KEY", "ALPACA_TATTICA_SECRET_KEY")}
 DEFAULTS = {"enabled": False, "accounts": ["main"], "time_in_force": "gtc", "take_profit_r": None,
-            "stop_emergenza_pct": None, "ledger_file": "state/alpaca_orders.json", "max_tentativi": 3}
+            "stop_emergenza_pct": None, "ledger_file": "state/alpaca_orders.json", "max_tentativi": 3,
+            "allineamento_iniziale": False}
 
 
 def settings(cfg: dict) -> dict:
@@ -65,7 +66,7 @@ class Ledger:
 
     def __init__(self, path: Path):
         self.path = Path(path)
-        self.data = {"ordini": {}, "riconciliazione": None}
+        self.data = {"ordini": {}, "riconciliazione": None, "allineamento": None}
         if self.path.exists():
             try:
                 self.data.update(json.loads(self.path.read_text(encoding="utf-8")))
@@ -189,6 +190,9 @@ class AlpacaBridge:
             ev.append(f"Alpaca: impossibile leggere l'orario di mercato ({_err(e)}), nessun ordine inviato")
             return ev
 
+        if self.s["allineamento_iniziale"]:
+            ev.extend(self.align(broker))
+
         for o in sorted(broker.pending, key=lambda x: x.side != "SELL"):  # prima le vendite
             cid = client_order_id(self.account, o)
             info = dict(ticker=o.ticker, lato=o.side, qty=int(o.qty), creato=o.created, motivo=o.reason)
@@ -234,6 +238,44 @@ class AlpacaBridge:
                                     dict(info, lato="STOP", qty=rest, stop=round(pos.stop, 2))))
         return out
 
+    def align(self, broker) -> list[str]:
+        """Allineamento UNA TANTUM: compra su Alpaca le posizioni che il simulatore aveva già prima del
+        collegamento. Doppia protezione contro le ripetizioni: segno "completato" nel registro (dopo il
+        quale non fa più nulla, anche se l'opzione resta accesa) e client_order_id fisso per ticker,
+        che Alpaca rifiuterebbe se arrivasse una seconda volta."""
+        stato = self.ledger.data.get("allineamento") or {}
+        if stato.get("stato") == "completato":
+            return []
+        busy = {o.ticker for o in broker.pending}
+        out, tutti_ok = [], True
+        for t, p in sorted(broker.positions.items()):
+            cid = f"pb-{self.account}-allinea-{t}"
+            if t in busy:  # un ordine in coda sullo stesso ticker: si allinea alla prossima esecuzione
+                out.append(f"Alpaca: allineamento {t} rinviato (ordine in coda sullo stesso ticker)")
+                tutti_ok = False
+                continue
+            rec = self.ledger.get(cid) or {}
+            if rec.get("stato") == "inviato":
+                continue
+            delta = int(p.qty) - self._alpaca_qty(t)
+            if delta <= 0:
+                self.ledger.put(cid, stato="saltato", nota="già allineato su Alpaca", ticker=t, lato="BUY", qty=0)
+                continue
+            o = SimpleOrder(t, "BUY", delta, broker.last_processed, "allineamento iniziale", p.stop)
+            info = dict(ticker=t, lato="BUY", qty=delta, creato=broker.last_processed, motivo="allineamento iniziale",
+                        stop=round(p.stop, 2))
+            out.append(self._submit(cid, self.buy_request(o, broker.last_price.get(t), cid), info))
+            if (self.ledger.get(cid) or {}).get("stato") != "inviato":
+                tutti_ok = False
+        if tutti_ok:
+            self.ledger.data["allineamento"] = {
+                "stato": "completato", "utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                "posizioni": {t: int(p.qty) for t, p in broker.positions.items()}}
+            out.append("Alpaca: allineamento iniziale completato (non verrà più ripetuto)")
+        else:
+            self.ledger.data["allineamento"] = {"stato": "in corso"}
+        return out
+
     def reconcile(self, broker) -> str:
         """Confronta le posizioni del simulatore con quelle di Alpaca (solo log, nessuna correzione)."""
         try:
@@ -250,6 +292,14 @@ class AlpacaBridge:
             log.warning("Alpaca: posizioni diverse dal simulatore: %s", diff)
             return f"Alpaca: ATTENZIONE posizioni diverse dal simulatore {diff}"
         return "Alpaca: posizioni allineate al simulatore"
+
+
+class SimpleOrder:
+    """Ordine minimo con gli stessi campi di bot.broker.Order usati qui."""
+
+    def __init__(self, ticker, side, qty, created, reason, stop=0.0):
+        self.ticker, self.side, self.qty, self.created, self.reason, self.stop = ticker, side, qty, created, reason, stop
+        self.add = False
 
 
 def sync_account(cfg: dict, broker, account: str, base_dir_resolver) -> list[str]:

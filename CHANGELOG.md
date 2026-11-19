@@ -16,6 +16,10 @@ cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole
 - Senza `ALPACA_API_KEY`/`ALPACA_SECRET_KEY` nulla cambia: avviso nel log e solo simulazione interna.
 - 15 test nuovi (`tests/test_alpaca.py`); su GitHub girano con la libreria alpaca-py vera.
 - Annullare: `"alpaca": {"enabled": false}` in config.json, oppure `git revert` del commit.
+- **Allineamento una tantum** (`alpaca.allineamento_iniziale: true`): compra su Alpaca le 4 posizioni che il
+  simulatore aveva prima del collegamento (DBC 272, EFA 95, SPY 13, VNQ 103), solo la differenza rispetto a ciò
+  che Alpaca ha già, senza stop (`stop_emergenza_pct` resta spento). Non si ripete: segno "completato" nel
+  registro e client_order_id fisso `pb-main-allinea-<TICKER>`. Se un ticker ha un ordine in coda, viene rinviato.
 
 ## 2026-11-18 — tecnica
 - **Prezzi in diretta**: cron spostati a minuti non tondi (`7,22,37,52 13-21`) e aggiunti due giri di
