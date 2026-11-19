@@ -1,0 +1,966 @@
+# bundle.txt — conto ombra Alpaca (paper) + allineamento una tantum.
+# File completi: si applica sia prima sia dopo il commit 1dfe3d9. Esclusi i file in .github/workflows
+# (il token del workflow non può modificarli): alpaca-py va aggiunto a mano in tests.yml ed esperimento.yml.
+
+#==== FILE: bot/alpaca_bridge.py sha256=2f4644393fb92a42bad13e395ba4eed8b4c11692a2cc07c1d6bac3f8646e2d2a
+"""Conto ombra su Alpaca (SOLO paper trading).
+
+Il simulatore interno (PaperBroker) resta la fonte di verità: stato, dashboard e CSV
+non dipendono mai da Alpaca. Questo modulo replica sul conto paper di Alpaca gli ordini
+che il simulatore ha messo in coda per la prossima apertura:
+
+- BUY  -> ordine a mercato con stop loss lato server: OTO (solo stop) oppure BRACKET
+          (stop + take profit, solo se `alpaca.take_profit_r` è impostato in config).
+          Alpaca accetta il BRACKET solo con entrambe le gambe, per questo senza take
+          profit si usa l'OTO. Time in force GTC: con DAY la gamba di stop scadrebbe a
+          fine seduta e le posizioni multi-giorno resterebbero senza protezione.
+          Un BUY senza stop (la rotazione non usa stop) diventa un ordine a mercato
+          semplice, salvo `alpaca.stop_emergenza_pct`.
+- SELL -> annulla gli ordini aperti sul ticker (gambe di stop), vende a mercato e,
+          se resta una parte della posizione con uno stop, rimette lo stop su quella parte.
+
+Niente doppioni: ogni ordine ha un client_order_id deterministico, registrato in un
+registro JSON separato (scrittura atomica); prima di inviare si chiede anche ad Alpaca
+se quel client_order_id esiste già. Ogni errore viene registrato e loggato, mai rilanciato.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+
+log = logging.getLogger("alpaca")
+
+ENV_KEYS = {"main": ("ALPACA_API_KEY", "ALPACA_SECRET_KEY"),
+            "tattica": ("ALPACA_TATTICA_API_KEY", "ALPACA_TATTICA_SECRET_KEY")}
+DEFAULTS = {"enabled": False, "accounts": ["main"], "time_in_force": "gtc", "take_profit_r": None,
+            "stop_emergenza_pct": None, "ledger_file": "state/alpaca_orders.json", "max_tentativi": 3,
+            "allineamento_iniziale": False}
+
+
+def settings(cfg: dict) -> dict:
+    return {**DEFAULTS, **(cfg.get("alpaca") or {})}
+
+
+def client_order_id(account: str, o) -> str:
+    raw = f"pb-{account}-{o.created}-{o.ticker}-{o.side}{'-add' if getattr(o, 'add', False) else ''}"
+    return re.sub(r"[^A-Za-z0-9_-]", "_", raw)[:128]
+
+
+def make_client(account: str = "main"):
+    """TradingClient paper, oppure None (con avviso, senza mostrare valori) se mancano le chiavi."""
+    k_name, s_name = ENV_KEYS.get(account, ENV_KEYS["main"])
+    key, secret = os.environ.get(k_name, "").strip(), os.environ.get(s_name, "").strip()
+    if not key or not secret:
+        log.warning("Alpaca: %s/%s non impostate: nessun ordine inviato ad Alpaca (solo simulazione interna).",
+                    k_name, s_name)
+        return None
+    try:
+        from alpaca.trading.client import TradingClient
+    except ImportError:
+        log.error("Alpaca: libreria alpaca-py non installata (pip install alpaca-py): nessun ordine inviato.")
+        return None
+    return TradingClient(key, secret, paper=True)  # paper=True fisso: questo modulo non tocca mai conti reali
+
+
+class Ledger:
+    """Registro degli ordini inoltrati, separato dallo stato del simulatore."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self.data = {"ordini": {}, "riconciliazione": None, "allineamento": None}
+        if self.path.exists():
+            try:
+                self.data.update(json.loads(self.path.read_text(encoding="utf-8")))
+            except (OSError, ValueError) as e:
+                # registro illeggibile: lo si mette da parte, i doppioni li blocca comunque il client_order_id
+                log.error("Alpaca: registro %s illeggibile (%s): ne creo uno nuovo.", self.path, e)
+                self.path.replace(self.path.with_suffix(".corrotto.json"))
+
+    def get(self, cid):
+        return self.data["ordini"].get(cid)
+
+    def put(self, cid, **rec):
+        rec["aggiornato_utc"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        self.data["ordini"][cid] = {**self.data["ordini"].get(cid, {}), **rec}
+
+    def save(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.data, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+        tmp.replace(self.path)
+
+
+def _err(e) -> str:
+    return f"{type(e).__name__}: {str(e)[:300]}"
+
+
+class AlpacaBridge:
+    def __init__(self, cfg: dict, ledger_path: Path, client, account: str = "main"):
+        self.s = settings(cfg)
+        self.ledger = Ledger(ledger_path)
+        self.client = client
+        self.account = account
+
+    # ---------- costruzione delle richieste (separata dall'invio, così è testabile) ----------
+    def _tif(self):
+        from alpaca.trading.enums import TimeInForce
+        return TimeInForce.DAY if str(self.s["time_in_force"]).lower() == "day" else TimeInForce.GTC
+
+    def buy_request(self, o, ref_price: float | None, cid: str):
+        from alpaca.trading.enums import OrderClass, OrderSide
+        from alpaca.trading.requests import MarketOrderRequest, StopLossRequest, TakeProfitRequest
+        stop = float(o.stop or 0)
+        if stop <= 0 and self.s["stop_emergenza_pct"] and ref_price:
+            stop = ref_price * (1 - float(self.s["stop_emergenza_pct"]))
+        kw = dict(symbol=o.ticker, qty=int(o.qty), side=OrderSide.BUY, time_in_force=self._tif(),
+                  client_order_id=cid)
+        if stop > 0:
+            kw["stop_loss"] = StopLossRequest(stop_price=round(stop, 2))
+            tp_r = self.s["take_profit_r"]
+            if tp_r and ref_price and ref_price > stop:
+                kw["order_class"] = OrderClass.BRACKET
+                kw["take_profit"] = TakeProfitRequest(limit_price=round(ref_price + tp_r * (ref_price - stop), 2))
+            else:
+                kw["order_class"] = OrderClass.OTO
+        return MarketOrderRequest(**kw)
+
+    def sell_request(self, ticker: str, qty: int, cid: str):
+        from alpaca.trading.enums import OrderSide
+        from alpaca.trading.requests import MarketOrderRequest
+        return MarketOrderRequest(symbol=ticker, qty=int(qty), side=OrderSide.SELL,
+                                  time_in_force=self._tif(), client_order_id=cid)
+
+    def stop_request(self, ticker: str, qty: int, stop: float, cid: str):
+        from alpaca.trading.enums import OrderSide, TimeInForce
+        from alpaca.trading.requests import StopOrderRequest
+        return StopOrderRequest(symbol=ticker, qty=int(qty), side=OrderSide.SELL, stop_price=round(stop, 2),
+                                time_in_force=TimeInForce.GTC, client_order_id=cid)
+
+    # ---------- accesso ad Alpaca, ogni chiamata protetta ----------
+    def _exists(self, cid) -> bool:
+        try:
+            self.client.get_order_by_client_id(cid)
+            return True
+        except Exception:  # 404 = non esiste (o errore: lo dirà l'invio)
+            return False
+
+    def _alpaca_qty(self, ticker) -> int:
+        try:
+            return int(float(self.client.get_open_position(ticker).qty))
+        except Exception:
+            return 0
+
+    def _cancel_open(self, ticker) -> int:
+        from alpaca.trading.enums import QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
+        n = 0
+        for od in self.client.get_orders(filter=GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker],
+                                                                 nested=False)):
+            self.client.cancel_order_by_id(od.id)
+            n += 1
+        return n
+
+    def _submit(self, cid, req, info: dict) -> str:
+        rec = self.ledger.get(cid) or {}
+        if rec.get("stato") == "inviato":
+            return f"Alpaca: {cid} già inviato, salto"
+        if rec.get("tentativi", 0) >= self.s["max_tentativi"]:
+            return f"Alpaca: {cid} abbandonato dopo {rec['tentativi']} tentativi falliti"
+        if self._exists(cid):
+            self.ledger.put(cid, stato="inviato", nota="già presente su Alpaca", **info)
+            return f"Alpaca: {cid} già presente su Alpaca, registrato"
+        try:
+            od = self.client.submit_order(order_data=req)
+            self.ledger.put(cid, stato="inviato", id=str(od.id), stato_alpaca=str(getattr(od, "status", "")),
+                            **info)
+            return f"Alpaca: inviato {info['lato']} {info['ticker']} x{info['qty']} ({cid})"
+        except Exception as e:
+            self.ledger.put(cid, stato="errore", tentativi=rec.get("tentativi", 0) + 1, errore=_err(e), **info)
+            log.error("Alpaca: invio %s fallito: %s", cid, _err(e))
+            return f"Alpaca: ERRORE su {cid}"
+
+    # ---------- sincronizzazione ----------
+    def sync(self, broker) -> list[str]:
+        ev = []
+        try:
+            if self.client.get_clock().is_open:
+                ev.append("Alpaca: mercato aperto, ordini non inviati (eseguirebbero a prezzi diversi "
+                          "dall'apertura simulata); riprovo alla prossima esecuzione")
+                return ev
+        except Exception as e:
+            ev.append(f"Alpaca: impossibile leggere l'orario di mercato ({_err(e)}), nessun ordine inviato")
+            return ev
+
+        if self.s["allineamento_iniziale"]:
+            ev.extend(self.align(broker))
+
+        for o in sorted(broker.pending, key=lambda x: x.side != "SELL"):  # prima le vendite
+            cid = client_order_id(self.account, o)
+            info = dict(ticker=o.ticker, lato=o.side, qty=int(o.qty), creato=o.created, motivo=o.reason)
+            try:
+                if o.side == "BUY":
+                    if int(o.qty) < 1:
+                        continue
+                    ref = broker.last_price.get(o.ticker)
+                    ev.append(self._submit(cid, self.buy_request(o, ref, cid), dict(info, stop=round(o.stop, 2))))
+                else:
+                    ev.extend(self._sell(broker, o, cid, info))
+            except Exception as e:  # errore nel preparare la richiesta: mai bloccare il resto
+                self.ledger.put(cid, stato="errore", errore=_err(e), **info)
+                log.error("Alpaca: %s non preparato: %s", cid, _err(e))
+                ev.append(f"Alpaca: ERRORE su {cid}")
+        ev.append(self.reconcile(broker))
+        return ev
+
+    def _sell(self, broker, o, cid, info) -> list[str]:
+        rec = self.ledger.get(cid) or {}
+        if rec.get("stato") in ("inviato", "saltato"):
+            return [f"Alpaca: {cid} già gestito, salto"]
+        if self._exists(cid):
+            self.ledger.put(cid, stato="inviato", nota="già presente su Alpaca", **info)
+            return [f"Alpaca: {cid} già presente su Alpaca, registrato"]
+        held = self._alpaca_qty(o.ticker)
+        if held <= 0:
+            self.ledger.put(cid, stato="saltato", nota="nessuna posizione su Alpaca", **info)
+            return [f"Alpaca: nessuna posizione {o.ticker} su Alpaca, vendita non necessaria"]
+        try:
+            n = self._cancel_open(o.ticker)  # libera le azioni bloccate dalle gambe di stop
+        except Exception as e:
+            self.ledger.put(cid, stato="errore", tentativi=rec.get("tentativi", 0) + 1, errore=_err(e), **info)
+            return [f"Alpaca: ERRORE annullando gli ordini aperti su {o.ticker}: {_err(e)}"]
+        qty = min(int(o.qty), held)
+        out = [f"Alpaca: annullati {n} ordini aperti su {o.ticker}"] if n else []
+        out.append(self._submit(cid, self.sell_request(o.ticker, qty, cid), dict(info, qty=qty)))
+        rest = held - qty
+        pos = broker.positions.get(o.ticker)
+        if rest > 0 and pos is not None and pos.stop > 0:  # vendita parziale: lo stop resta sul resto
+            scid = (cid + "-stop")[:128]
+            out.append(self._submit(scid, self.stop_request(o.ticker, rest, pos.stop, scid),
+                                    dict(info, lato="STOP", qty=rest, stop=round(pos.stop, 2))))
+        return out
+
+    def align(self, broker) -> list[str]:
+        """Allineamento UNA TANTUM: compra su Alpaca le posizioni che il simulatore aveva già prima del
+        collegamento. Doppia protezione contro le ripetizioni: segno "completato" nel registro (dopo il
+        quale non fa più nulla, anche se l'opzione resta accesa) e client_order_id fisso per ticker,
+        che Alpaca rifiuterebbe se arrivasse una seconda volta."""
+        stato = self.ledger.data.get("allineamento") or {}
+        if stato.get("stato") == "completato":
+            return []
+        busy = {o.ticker for o in broker.pending}
+        out, tutti_ok = [], True
+        for t, p in sorted(broker.positions.items()):
+            cid = f"pb-{self.account}-allinea-{t}"
+            if t in busy:  # un ordine in coda sullo stesso ticker: si allinea alla prossima esecuzione
+                out.append(f"Alpaca: allineamento {t} rinviato (ordine in coda sullo stesso ticker)")
+                tutti_ok = False
+                continue
+            rec = self.ledger.get(cid) or {}
+            if rec.get("stato") == "inviato":
+                continue
+            delta = int(p.qty) - self._alpaca_qty(t)
+            if delta <= 0:
+                self.ledger.put(cid, stato="saltato", nota="già allineato su Alpaca", ticker=t, lato="BUY", qty=0)
+                continue
+            o = SimpleOrder(t, "BUY", delta, broker.last_processed, "allineamento iniziale", p.stop)
+            info = dict(ticker=t, lato="BUY", qty=delta, creato=broker.last_processed, motivo="allineamento iniziale",
+                        stop=round(p.stop, 2))
+            out.append(self._submit(cid, self.buy_request(o, broker.last_price.get(t), cid), info))
+            if (self.ledger.get(cid) or {}).get("stato") != "inviato":
+                tutti_ok = False
+        if tutti_ok:
+            self.ledger.data["allineamento"] = {
+                "stato": "completato", "utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                "posizioni": {t: int(p.qty) for t, p in broker.positions.items()}}
+            out.append("Alpaca: allineamento iniziale completato (non verrà più ripetuto)")
+        else:
+            self.ledger.data["allineamento"] = {"stato": "in corso"}
+        return out
+
+    def reconcile(self, broker) -> str:
+        """Confronta le posizioni del simulatore con quelle di Alpaca (solo log, nessuna correzione)."""
+        try:
+            alp = {p.symbol: int(float(p.qty)) for p in self.client.get_all_positions()}
+        except Exception as e:
+            return f"Alpaca: riconciliazione non riuscita ({_err(e)})"
+        sim = {t: int(p.qty) for t, p in broker.positions.items()}
+        diff = {t: {"simulatore": sim.get(t, 0), "alpaca": alp.get(t, 0)}
+                for t in sorted(set(sim) | set(alp)) if sim.get(t, 0) != alp.get(t, 0)}
+        self.ledger.data["riconciliazione"] = {
+            "utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "ultimo_giorno_simulato": broker.last_processed, "differenze": diff}
+        if diff:
+            log.warning("Alpaca: posizioni diverse dal simulatore: %s", diff)
+            return f"Alpaca: ATTENZIONE posizioni diverse dal simulatore {diff}"
+        return "Alpaca: posizioni allineate al simulatore"
+
+
+class SimpleOrder:
+    """Ordine minimo con gli stessi campi di bot.broker.Order usati qui."""
+
+    def __init__(self, ticker, side, qty, created, reason, stop=0.0):
+        self.ticker, self.side, self.qty, self.created, self.reason, self.stop = ticker, side, qty, created, reason, stop
+        self.add = False
+
+
+def sync_account(cfg: dict, broker, account: str, base_dir_resolver) -> list[str]:
+    """Punto d'ingresso usato da run_paper.py. Non solleva mai eccezioni."""
+    s = settings(cfg)
+    if not s["enabled"] or account not in s["accounts"]:
+        return []
+    try:
+        client = make_client(account)
+        if client is None:
+            return ["Alpaca: non attivo (chiavi mancanti)"]
+        ledger_path = base_dir_resolver(cfg, s["ledger_file"] if account == "main"
+                                        else s["ledger_file"].replace(".json", f"_{account}.json"))
+        bridge = AlpacaBridge(cfg, ledger_path, client, account)
+        try:
+            return bridge.sync(broker)
+        finally:
+            try:
+                bridge.ledger.save()
+            except OSError as e:
+                log.error("Alpaca: registro non salvato: %s", e)
+    except Exception as e:
+        log.error("Alpaca: sincronizzazione interrotta: %s", _err(e))
+        return [f"Alpaca: ERRORE {_err(e)}"]
+#==== FILE: tests/test_alpaca.py sha256=77abb538a72a1519206744c1cc24d228bcf2a70cb12ec6f14687b22e6f86bdf5
+"""Test del conto ombra Alpaca. Con alpaca-py installato (GitHub) usano le classi vere della
+libreria per costruire le richieste; senza, una copia minima delle stesse classi. Nessuna
+chiamata di rete: il client Alpaca è sempre finto."""
+import enum
+import importlib.util
+import json
+import sys
+import types
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+REAL_ALPACA = importlib.util.find_spec("alpaca") is not None
+
+
+def _install_stub():
+    class _Req:
+        def __init__(self, **kw):
+            self.__dict__.update({"order_class": None, "take_profit": None, "stop_loss": None}, **kw)
+
+    en = types.ModuleType("alpaca.trading.enums")
+    en.OrderSide = enum.Enum("OrderSide", {"BUY": "buy", "SELL": "sell"})
+    en.TimeInForce = enum.Enum("TimeInForce", {"DAY": "day", "GTC": "gtc"})
+    en.OrderClass = enum.Enum("OrderClass", {"SIMPLE": "simple", "BRACKET": "bracket", "OTO": "oto"})
+    en.QueryOrderStatus = enum.Enum("QueryOrderStatus", {"OPEN": "open"})
+    rq = types.ModuleType("alpaca.trading.requests")
+    for n in ("MarketOrderRequest", "StopLossRequest", "TakeProfitRequest", "StopOrderRequest", "GetOrdersRequest"):
+        setattr(rq, n, type(n, (_Req,), {}))
+    cl = types.ModuleType("alpaca.trading.client")
+    cl.TradingClient = lambda *a, **k: SimpleNamespace(args=a, kwargs=k)
+    for name, mod in {"alpaca": types.ModuleType("alpaca"), "alpaca.trading": types.ModuleType("alpaca.trading"),
+                      "alpaca.trading.enums": en, "alpaca.trading.requests": rq, "alpaca.trading.client": cl}.items():
+        sys.modules[name] = mod
+
+
+if not REAL_ALPACA:
+    _install_stub()
+
+from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce  # noqa: E402
+
+from bot import alpaca_bridge as ab  # noqa: E402
+from bot.broker import Order, PaperBroker, Position  # noqa: E402
+from bot.config import load_config  # noqa: E402
+
+CFG = load_config(Path(__file__).resolve().parents[1] / "config.json")
+
+
+class FakeClient:
+    def __init__(self, open_=False, positions=None, fail=None, open_orders=None):
+        self.sent, self.cancelled, self.open_ = [], [], open_
+        self.positions = positions or {}
+        self.fail = fail  # eccezione da sollevare all'invio
+        self.open_orders = open_orders or {}
+
+    def get_clock(self):
+        return SimpleNamespace(is_open=self.open_)
+
+    def get_order_by_client_id(self, cid):
+        if any(r.client_order_id == cid for r in self.sent):
+            return SimpleNamespace(id="x")
+        raise RuntimeError("404 order not found")
+
+    def submit_order(self, order_data):
+        if self.fail:
+            raise self.fail
+        self.sent.append(order_data)
+        return SimpleNamespace(id=f"id{len(self.sent)}", status="accepted")
+
+    def get_open_position(self, t):
+        if t not in self.positions:
+            raise RuntimeError("404 position does not exist")
+        return SimpleNamespace(qty=str(self.positions[t]))
+
+    def get_orders(self, filter=None):
+        return [SimpleNamespace(id=i) for i in self.open_orders.get(filter.symbols[0], [])]
+
+    def cancel_order_by_id(self, i):
+        self.cancelled.append(i)
+
+    def get_all_positions(self):
+        return [SimpleNamespace(symbol=t, qty=str(q)) for t, q in self.positions.items()]
+
+
+def cfg(**alp):
+    c = json.loads(json.dumps(CFG))
+    c["alpaca"] = {**c.get("alpaca", {}), "enabled": True, **alp}
+    return c
+
+
+def broker_with(pending, positions=None):
+    b = PaperBroker(cash=50000.0, commission_pct=0.001, commission_min=1.0, slippage_pct=0.0005, peak_equity=50000.0)
+    b.pending = list(pending)
+    b.positions = positions or {}
+    b.last_price = {"SPY": 600.0, "QQQ": 500.0}
+    b.last_processed = "2026-11-18"
+    return b
+
+
+def bridge(tmp_path, client, **alp):
+    return ab.AlpacaBridge(cfg(**alp), tmp_path / "alpaca_orders.json", client)
+
+
+def test_senza_chiavi_nessun_ordine_e_avviso_senza_valori(monkeypatch, caplog):
+    monkeypatch.delenv("ALPACA_API_KEY", raising=False)
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "segreto-da-non-mostrare")
+    caplog.set_level("WARNING")
+    assert ab.make_client() is None
+    assert "ALPACA_API_KEY" in caplog.text and "segreto-da-non-mostrare" not in caplog.text
+    out = ab.sync_account(cfg(), broker_with([Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580.123)]),
+                          "main", lambda c, p: Path("/nonesiste") / p)
+    assert out == ["Alpaca: non attivo (chiavi mancanti)"]
+
+
+def test_client_sempre_paper(monkeypatch):
+    monkeypatch.setenv("ALPACA_API_KEY", "k")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    if REAL_ALPACA:
+        c = ab.make_client()
+        assert "paper" in str(c._base_url).lower()
+    else:
+        assert ab.make_client().kwargs == {"paper": True}
+
+
+def test_buy_con_stop_diventa_oto_gtc_arrotondato(tmp_path):
+    c = FakeClient()
+    ev = bridge(tmp_path, c).sync(broker_with([Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580.1234)]))
+    r = c.sent[0]
+    assert r.order_class == OrderClass.OTO and r.take_profit is None
+    assert r.stop_loss.stop_price == 580.12 and r.time_in_force == TimeInForce.GTC
+    assert r.side == OrderSide.BUY and r.qty == 5 and r.client_order_id == "pb-main-2026-11-18-SPY-BUY"
+    assert any("inviato BUY SPY" in e for e in ev)
+
+
+def test_take_profit_solo_se_configurato_diventa_bracket(tmp_path):
+    c = FakeClient()
+    bridge(tmp_path, c, take_profit_r=2).sync(broker_with([Order("SPY", "BUY", 5, "2026-11-18", "t", stop=590)]))
+    r = c.sent[0]
+    assert r.order_class == OrderClass.BRACKET
+    assert r.take_profit.limit_price == 620.0  # 600 + 2 * (600 - 590)
+
+
+def test_buy_senza_stop_resta_ordine_semplice(tmp_path):
+    c = FakeClient()
+    bridge(tmp_path, c).sync(broker_with([Order("SPY", "BUY", 5, "2026-11-18", "rotazione")]))
+    assert c.sent[0].order_class in (None, OrderClass.SIMPLE) and c.sent[0].stop_loss is None
+
+
+def test_nessun_doppione_tra_esecuzioni(tmp_path):
+    o = Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580)
+    c = FakeClient()
+    b1 = bridge(tmp_path, c)
+    b1.sync(broker_with([o]))
+    b1.ledger.save()
+    bridge(tmp_path, c).sync(broker_with([o]))       # 2ª esecuzione: registro letto da file
+    (tmp_path / "alpaca_orders.json").unlink()
+    bridge(tmp_path, c).sync(broker_with([o]))       # registro perso: lo blocca il client_order_id
+    assert len(c.sent) == 1
+
+
+def test_errore_api_registrato_senza_eccezioni_e_tentativi_limitati(tmp_path):
+    c = FakeClient(fail=RuntimeError("403 insufficient buying power"))
+    o = Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580)
+    for _ in range(5):
+        br = bridge(tmp_path, c, max_tentativi=3)
+        ev = br.sync(broker_with([o]))
+        br.ledger.save()
+    rec = json.loads((tmp_path / "alpaca_orders.json").read_text())["ordini"]["pb-main-2026-11-18-SPY-BUY"]
+    assert rec["stato"] == "errore" and rec["tentativi"] == 3 and "insufficient" in rec["errore"]
+    assert any("abbandonato" in e for e in ev)
+
+
+def test_mercato_aperto_non_invia(tmp_path):
+    c = FakeClient(open_=True)
+    ev = bridge(tmp_path, c).sync(broker_with([Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580)]))
+    assert c.sent == [] and "mercato aperto" in ev[0]
+
+
+def test_sell_annulla_gli_stop_e_vende(tmp_path):
+    c = FakeClient(positions={"QQQ": 10}, open_orders={"QQQ": ["stop1"]})
+    b = broker_with([Order("QQQ", "SELL", 10, "2026-11-18", "rotazione: esce")],
+                    {"QQQ": Position("QQQ", 10, 480, "2026-11-01", 0.0)})
+    bridge(tmp_path, c).sync(b)
+    assert c.cancelled == ["stop1"]
+    assert len(c.sent) == 1 and c.sent[0].side == OrderSide.SELL and c.sent[0].qty == 10
+
+
+def test_sell_parziale_rimette_lo_stop_sul_resto(tmp_path):
+    c = FakeClient(positions={"QQQ": 10}, open_orders={"QQQ": ["stop1"]})
+    b = broker_with([Order("QQQ", "SELL", 4, "2026-11-18", "ribilanciamento")],
+                    {"QQQ": Position("QQQ", 10, 480, "2026-11-01", 470.555)})
+    bridge(tmp_path, c).sync(b)
+    sell, stop = c.sent
+    assert sell.qty == 4 and stop.qty == 6 and stop.stop_price == 470.56
+    assert stop.client_order_id.endswith("-stop")
+
+
+def test_sell_senza_posizione_su_alpaca_saltato(tmp_path):
+    c = FakeClient()
+    ev = bridge(tmp_path, c).sync(broker_with([Order("QQQ", "SELL", 4, "2026-11-18", "kill switch")]))
+    assert c.sent == [] and any("nessuna posizione" in e for e in ev)
+
+
+def test_riconciliazione_segnala_differenze(tmp_path):
+    c = FakeClient(positions={"SPY": 3})
+    br = bridge(tmp_path, c)
+    ev = br.sync(broker_with([], {"SPY": Position("SPY", 5, 600, "2026-11-01", 0.0)}))
+    assert "ATTENZIONE" in ev[-1]
+    assert br.ledger.data["riconciliazione"]["differenze"] == {"SPY": {"simulatore": 5, "alpaca": 3}}
+
+
+def test_registro_corrotto_non_blocca(tmp_path):
+    (tmp_path / "alpaca_orders.json").write_text("{non json")
+    c = FakeClient()
+    bridge(tmp_path, c).sync(broker_with([Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580)]))
+    assert len(c.sent) == 1 and (tmp_path / "alpaca_orders.corrotto.json").exists()
+
+
+def test_sync_account_non_solleva_mai(tmp_path, monkeypatch):
+    monkeypatch.setattr(ab, "make_client", lambda a="main": (_ for _ in ()).throw(RuntimeError("boom")))
+    out = ab.sync_account(cfg(), broker_with([]), "main", lambda c, p: tmp_path / p)
+    assert out and "ERRORE" in out[0]
+
+
+def test_conto_non_elencato_ignorato(tmp_path):
+    assert ab.sync_account(cfg(), broker_with([]), "tattica", lambda c, p: tmp_path / p) == []
+    assert ab.sync_account(cfg(enabled=False), broker_with([]), "main", lambda c, p: tmp_path / p) == []
+
+
+def _pos():
+    return {"DBC": Position("DBC", 272, 23.0, "2026-11-16", 0.0), "EFA": Position("EFA", 95, 90.0, "2026-11-16", 0.0),
+            "SPY": Position("SPY", 13, 750.0, "2026-11-16", 0.0), "VNQ": Position("VNQ", 103, 90.0, "2026-11-16", 0.0)}
+
+
+def test_allineamento_una_sola_volta(tmp_path):
+    c = FakeClient()
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    ev = br.sync(broker_with([], _pos()))
+    br.ledger.save()
+    assert sorted((r.symbol, r.qty) for r in c.sent) == [("DBC", 272), ("EFA", 95), ("SPY", 13), ("VNQ", 103)]
+    assert all(r.order_class in (None, OrderClass.SIMPLE) and r.stop_loss is None for r in c.sent)  # niente stop
+    assert any("completato" in e for e in ev)
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))  # 2ª esecuzione
+    (tmp_path / "alpaca_orders.json").unlink()                                      # registro perso
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))
+    assert len(c.sent) == 4
+
+
+def test_allineamento_compra_solo_la_differenza(tmp_path):
+    c = FakeClient(positions={"SPY": 13, "DBC": 200})
+    bridge(tmp_path, c, allineamento_iniziale=True).sync(broker_with([], _pos()))
+    assert sorted((r.symbol, r.qty) for r in c.sent) == [("DBC", 72), ("EFA", 95), ("VNQ", 103)]
+
+
+def test_allineamento_con_errore_riprova_solo_i_mancanti(tmp_path):
+    c = FakeClient(fail=RuntimeError("500"))
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([], _pos()))
+    br.ledger.save()
+    assert br.ledger.data["allineamento"]["stato"] == "in corso"
+    c.fail = None
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([], _pos()))
+    assert len(c.sent) == 4 and br.ledger.data["allineamento"]["stato"] == "completato"
+
+
+def test_allineamento_spento_di_default(tmp_path):
+    c = FakeClient()
+    bridge(tmp_path, c, allineamento_iniziale=False).sync(broker_with([], _pos()))
+    assert c.sent == []
+
+
+def test_allineamento_rinviato_se_ordine_in_coda_sul_ticker(tmp_path):
+    c = FakeClient()
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([Order("SPY", "SELL", 13, "2026-11-18", "rotazione: esce")], _pos()))
+    assert "SPY" not in [r.symbol for r in c.sent if r.side == OrderSide.BUY]
+    assert br.ledger.data["allineamento"]["stato"] == "in corso"
+#==== FILE: run_paper.py sha256=28f07405ef5760360cb47a8723233f8476c26fb9d84560aab21747a385b8c960
+"""Paper trading autonomo. Va lanciato UNA volta al giorno dopo la chiusura USA
+(es. alle 23:15 ora italiana) da cron / Utilità di pianificazione di Windows.
+
+Ogni esecuzione:
+  1. scarica i dati aggiornati
+  2. carica il portafoglio virtuale dal file di stato
+  3. processa le nuove barre chiuse (esegue gli ordini, controlla gli stop, genera i nuovi ordini)
+  4. salva lo stato e scrive il report del giorno
+
+Uso:
+  python run_paper.py              # esecuzione normale
+  python run_paper.py --status     # mostra il portafoglio senza fare nulla
+  python run_paper.py --reset      # azzera il portafoglio virtuale (chiede conferma)
+  python run_paper.py --unhalt     # riattiva dopo il kill switch (solo dopo aver capito cosa è successo)
+
+Conto ombra Alpaca (solo paper, facoltativo): con "alpaca.enabled" in config.json e le variabili
+d'ambiente ALPACA_API_KEY / ALPACA_SECRET_KEY, gli ordini in coda vengono replicati su Alpaca
+DOPO il salvataggio dello stato (vedi bot/alpaca_bridge.py). Senza chiavi: solo simulazione interna.
+"""
+import argparse
+import csv
+import logging
+import sys
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+
+from bot import data as dmod
+from bot.alpaca_bridge import sync_account
+from bot.broker import PaperBroker
+from bot.config import load_config, resolve, tactical_cfg
+from bot.engine import Engine, load_blackout
+from run_backtest import make_broker
+
+log = logging.getLogger("paper")
+
+
+def setup_logging(journal_dir: Path):
+    journal_dir.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
+                        handlers=[logging.FileHandler(journal_dir / "bot.log", encoding="utf-8"),
+                                  logging.StreamHandler(sys.stdout)])
+
+
+def last_complete_day(now_rome: datetime, after_hour: int) -> pd.Timestamp:
+    """La barra di oggi è considerata chiusa solo dopo l'ora indicata (ora di Roma)."""
+    today = pd.Timestamp(now_rome.date())
+    return today if now_rome.hour >= after_hour else today - pd.Timedelta(days=1)
+
+
+def status(b: PaperBroker) -> str:
+    eq = b.equity()
+    lines = [f"Ultimo giorno processato: {b.last_processed}",
+             f"Equity: {eq:,.2f} | Cassa: {b.cash:,.2f} | Picco: {b.peak_equity:,.2f} | "
+             f"Drawdown: {100 * (1 - eq / b.peak_equity) if b.peak_equity else 0:.1f}%",
+             f"Interessi maturati sulla liquidità: {b.interest_earned:,.2f}",
+             f"Ultimo ribilanciamento: {b.last_rebalance or '-'}",
+             f"Bloccato (kill switch): {'SI' if b.halted else 'no'}", "Posizioni:"]
+    for t, p in b.positions.items():
+        px = b.last_price.get(t, p.entry_price)
+        stop = f"stop {p.stop:>9.2f} " if p.stop > 0 else ""
+        lines.append(f"  {t:6} qty {p.qty:>8} carico {p.entry_price:>9.2f} ultimo {px:>9.2f} "
+                     f"{stop}peso {100 * p.qty * px / eq:4.1f}% P&L {100 * (px / p.entry_price - 1):+.1f}%")
+    if not b.positions:
+        lines.append("  (nessuna)")
+    lines.append("Ordini per la prossima apertura:")
+    for o in b.pending:
+        lines.append(f"  {o.side} {o.ticker} x{o.qty} ({o.reason})")
+    if not b.pending:
+        lines.append("  (nessuno)")
+    return "\n".join(lines)
+
+
+def alpaca_sync(cfg, broker, account) -> str:
+    """Replica gli ordini in coda sul conto paper di Alpaca. Mai bloccante: lo stato è già salvato."""
+    events = sync_account(cfg, broker, account, resolve)
+    for ev in events:
+        (log.error if "ERRORE" in ev else log.warning if "ATTENZIONE" in ev else log.info)(ev)
+    return ("\n" + "\n".join(events)) if events else ""
+
+
+def append_csv(path: Path, rows: list[dict]):
+    if not rows:
+        return
+    new = not path.exists()
+    with path.open("a", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        if new:
+            w.writeheader()
+        w.writerows(rows)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config", default="config.json")
+    ap.add_argument("--status", action="store_true")
+    ap.add_argument("--reset", action="store_true")
+    ap.add_argument("--unhalt", action="store_true")
+    a = ap.parse_args()
+
+    cfg = load_config(a.config)
+    state_path = resolve(cfg, cfg["state_file"])
+    journal = resolve(cfg, cfg["journal_dir"])
+    setup_logging(journal)
+
+    if a.reset:
+        if input("Azzero il portafoglio virtuale? Scrivi SI: ").strip() == "SI":
+            state_path.unlink(missing_ok=True)
+            print("Portafoglio azzerato.")
+        return
+
+    broker = PaperBroker.load(state_path) if state_path.exists() else None
+    if a.status:
+        print(status(broker) if broker else "Nessun portafoglio ancora: lancia senza opzioni.")
+        return
+    if a.unhalt:
+        if broker:
+            broker.halted = False
+            broker.peak_equity = broker.equity()  # il drawdown riparte da qui
+            broker.save(state_path)
+            log.warning("Kill switch disattivato manualmente. Picco reimpostato a %.2f", broker.peak_equity)
+        return
+
+    now = datetime.now(ZoneInfo("Europe/Rome"))
+    cutoff = last_complete_day(now, cfg["process_today_after_hour_rome"])
+
+    # scarica abbastanza storia per gli indicatori (circa 2 anni bastano per SMA 200)
+    start = (cutoff - pd.Timedelta(days=800)).strftime("%Y-%m-%d")
+    data = dmod.load(cfg, start=start, end=(cutoff + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
+    data = {t: df[df.index <= cutoff] for t, df in data.items()}
+
+    stale = dmod.check_staleness(data, cutoff, cfg["data"]["max_staleness_days"])
+    if stale:
+        log.warning("Dati vecchi per %s: esclusi da questa esecuzione", stale)
+        data = {t: df for t, df in data.items() if t not in stale}
+    missing = set(cfg["universe"]) - set(data)
+    if broker:
+        held_missing = set(broker.positions) & missing
+        if held_missing:
+            # mai decidere alla cieca su una posizione aperta
+            log.error("Mancano i dati di posizioni aperte %s: esecuzione interrotta, nessuna modifica.", held_missing)
+            sys.exit(2)
+    if not data:
+        log.error("Nessun dato utilizzabile. Nessuna modifica.")
+        sys.exit(2)
+
+    first_run = broker is None
+    if first_run:
+        broker = make_broker(cfg)
+        log.info("Nuovo portafoglio virtuale: %.2f %s", broker.cash, cfg["portfolio"]["currency"])
+
+    cash_rate = dmod.load_cash_rate(cfg, start=start)
+    eng = Engine(cfg, data, broker, load_blackout(resolve(cfg, cfg["blackout_file"])), cash_rate)
+    cal = eng.calendar()
+    if first_run:
+        todo = cal[-1:]  # si parte da oggi: niente replay del passato
+    else:
+        todo = cal[cal > pd.Timestamp(broker.last_processed)]
+    if len(todo) == 0:
+        log.info("Nessuna nuova barra chiusa da processare (ultima: %s).", broker.last_processed)
+        alpaca_sync(cfg, broker, "main")  # ritenta gli invii falliti; i doppioni sono bloccati
+        print(status(broker))
+        return
+
+    n_fills, n_trades = len(broker.fills), len(broker.trades)
+    for d in todo:
+        for ev in eng.step(d):
+            log.info(ev)
+
+    broker.save(state_path)
+    append_csv(journal / "fills.csv", broker.fills[n_fills:])
+    append_csv(journal / "trades_closed.csv", broker.trades[n_trades:])
+    append_csv(journal / "equity.csv", [{"date": d, "equity": e} for d, e in broker.equity_curve[-len(todo):]])
+    report = status(broker) + alpaca_sync(cfg, broker, "main")
+
+    # conto tattico (operazioni brevi), separato dal portafoglio principale
+    tcfg = tactical_cfg(cfg)
+    if tcfg:
+        report += "\n\n=== CONTO TATTICO ===\n" + run_account(tcfg, data, cash_rate, journal, "tattica_")
+    (journal / "ultimo_report.txt").write_text(report, encoding="utf-8")
+    print(report)
+
+
+def run_account(cfg, data, cash_rate, journal, prefix) -> str:
+    """Esegue un conto aggiuntivo con il suo file di stato. Ritorna il suo stato in testo."""
+    sp = resolve(cfg, cfg["state_file"])
+    b = PaperBroker.load(sp) if sp.exists() else None
+    first = b is None
+    if first:
+        b = make_broker(cfg)
+        log.info("Nuovo conto tattico virtuale: %.2f", b.cash)
+    sub = {t: data[t] for t in cfg["universe"] if t in data}
+    if set(b.positions) - set(sub):
+        log.error("Conto tattico: mancano dati di posizioni aperte, nessuna modifica.")
+        return status(b)
+    eng = Engine(cfg, sub, b, load_blackout(resolve(cfg, cfg["blackout_file"])), cash_rate)
+    cal = eng.calendar()
+    todo = cal[-1:] if first else cal[cal > pd.Timestamp(b.last_processed)]
+    nf, nt = len(b.fills), len(b.trades)
+    for d in todo:
+        for ev in eng.step(d):
+            log.info("tattica: %s", ev)
+    if len(todo):
+        b.save(sp)
+        append_csv(journal / f"{prefix}fills.csv", b.fills[nf:])
+        append_csv(journal / f"{prefix}trades_closed.csv", b.trades[nt:])
+    return status(b) + alpaca_sync(cfg, b, "tattica")
+
+
+if __name__ == "__main__":
+    main()
+#==== FILE: config.json sha256=d03deada8c02e05e6a4f9d96b63471aeb0af5a0b90cdf63946d5f0393769ad66
+{
+  "universe": [
+    "SPY",
+    "QQQ",
+    "IWM",
+    "EFA",
+    "EEM",
+    "TLT",
+    "IEF",
+    "GLD",
+    "DBC",
+    "VNQ"
+  ],
+  "data": {
+    "source": "yfinance",
+    "csv_dir": "data",
+    "history_start": "2005-01-01",
+    "max_staleness_days": 5
+  },
+  "portfolio": {
+    "initial_capital": 50000.0,
+    "currency": "USD",
+    "fractional_shares": false
+  },
+  "costs": {
+    "commission_pct": 0.001,
+    "commission_min": 1.0,
+    "slippage_pct": 0.0005,
+    "cash_rate_ticker": "^IRX",
+    "cash_rate_fallback": 0.015
+  },
+  "strategy": {
+    "type": "rotation",
+    "trend_sma": 200,
+    "top_n": 5,
+    "score_lookbacks": [
+      21,
+      63,
+      126,
+      252
+    ],
+    "vol_lookback": 63,
+    "weighting": "inverse_vol",
+    "rebalance_band": 0.02,
+    "_parametri_breakout": "usati solo con type = breakout",
+    "entry_breakout": 55,
+    "exit_breakout": 20,
+    "atr_period": 20,
+    "initial_stop_atr": 2.5,
+    "trailing_stop_atr": 3.0,
+    "momentum_lookback": 126
+  },
+  "risk": {
+    "risk_per_trade": 0.01,
+    "max_position_pct": 0.2,
+    "max_gross_exposure": 1.0,
+    "max_positions": 6,
+    "drawdown_reduce_at": 0.15,
+    "drawdown_reduce_factor": 0.5,
+    "drawdown_kill_at": 0.25
+  },
+  "blackout_file": "blackout_dates.csv",
+  "state_file": "state/paper_state.json",
+  "journal_dir": "state",
+  "process_today_after_hour_rome": 23,
+  "tactical": {
+    "enabled": false,
+    "_nota": "conto virtuale separato per operazioni brevi; si attiva solo se il backtest migliora il risultato",
+    "initial_capital": 10000.0,
+    "universe": [
+      "SPY",
+      "QQQ",
+      "IWM"
+    ],
+    "state_file": "state/tactical_state.json",
+    "strategy": {
+      "rsi_entry": 10,
+      "max_hold_days": 5,
+      "turn_of_month": true,
+      "turn_of_month_tickers": [
+        "SPY"
+      ]
+    }
+  },
+  "alpaca": {
+    "enabled": true,
+    "accounts": [
+      "main"
+    ],
+    "time_in_force": "gtc",
+    "take_profit_r": null,
+    "stop_emergenza_pct": null,
+    "ledger_file": "state/alpaca_orders.json",
+    "max_tentativi": 3,
+    "allineamento_iniziale": true
+  }
+}
+#==== FILE: requirements.txt sha256=2583f8145c66aa4c3d9e8b4208b36988e506709deeba3adce2550d10c9e474c8
+pandas>=2.0
+numpy>=1.24
+yfinance>=0.2.40
+alpaca-py>=0.30
+matplotlib>=3.7
+pytest>=7.0
+#==== FILE: CHANGELOG.md sha256=192320b5a31342402276cf5bf4ca4cace7238c923aafb4d29005bdea38f1b2b0
+# Registro modifiche
+
+Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
+cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
+
+## 2026-11-19 — tecnica (richiesta dell'utente)
+- **Conto ombra Alpaca, solo paper** (`bot/alpaca_bridge.py`, agganciato in `run_paper.py` dopo il salvataggio
+  dello stato): gli ordini in coda del simulatore vengono replicati su Alpaca con `paper=True` fisso.
+  BUY con stop → OTO con stop lato server (BRACKET solo se `alpaca.take_profit_r` è impostato: Alpaca vuole
+  il take profit per il bracket), GTC perché con DAY lo stop scadrebbe a fine seduta. SELL → annulla gli
+  stop aperti sul ticker, vende, e se la vendita è parziale rimette lo stop sul resto. Niente doppioni
+  (client_order_id deterministico + registro `state/alpaca_orders.json`), errori registrati con al massimo
+  3 tentativi, nessun invio a mercato aperto, riconciliazione posizioni simulatore/Alpaca a ogni esecuzione.
+- La strategia di rotazione non usa stop: i suoi BUY restano ordini a mercato semplici, come nel backtest.
+  `alpaca.stop_emergenza_pct` (spento) aggiungerebbe uno stop solo su Alpaca, fuori dal backtest.
+- Senza `ALPACA_API_KEY`/`ALPACA_SECRET_KEY` nulla cambia: avviso nel log e solo simulazione interna.
+- 15 test nuovi (`tests/test_alpaca.py`); su GitHub girano con la libreria alpaca-py vera.
+- Annullare: `"alpaca": {"enabled": false}` in config.json, oppure `git revert` del commit.
+- **Allineamento una tantum** (`alpaca.allineamento_iniziale: true`): compra su Alpaca le 4 posizioni che il
+  simulatore aveva prima del collegamento (DBC 272, EFA 95, SPY 13, VNQ 103), solo la differenza rispetto a ciò
+  che Alpaca ha già, senza stop (`stop_emergenza_pct` resta spento). Non si ripete: segno "completato" nel
+  registro e client_order_id fisso `pb-main-allinea-<TICKER>`. Se un ticker ha un ordine in coda, viene rinviato.
+
+## 2026-11-18 — tecnica
+- **Prezzi in diretta**: cron spostati a minuti non tondi (`7,22,37,52 13-21`) e aggiunti due giri di
+  pre-apertura (`3,33 12`). Motivo: diagnosi 17/11, solo 8 esecuzioni su 36 e prima esecuzione alle
+  14:12 UTC, dopo il briefing delle 13:47 → futures vecchi nel briefing.
+- **Paperbot**: cron `7 22`, `41 23`, `7 6` (prima `15 22`, `45 23`, `15 6`). Motivo: ritardo medio 53 min
+  agli orari tondi.
+- **Test nel repository** (`tests/test_core.py`, 24 test) e workflow `Test` a ogni modifica del codice,
+  così ogni correzione automatica viene verificata anche su GitHub.
+- **Workflow `Esperimento`**: confronta main con un branch di prova sugli stessi dati (dal 2005, 2015, 2021
+  e ultimi 3 anni come verifica fuori campione) e dice se la modifica rispetta la governance. Non tocca lo stato.
+- Annullare: `git revert` dei commit del 18/11.
