@@ -12,3 +12,11 @@
 2026-11-19 10:13:41,607 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-18).
 2026-11-19 10:13:41,785 [WARNING] Alpaca: posizioni diverse dal simulatore: {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}
 2026-11-19 10:13:41,787 [WARNING] Alpaca: ATTENZIONE posizioni diverse dal simulatore {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}
+2026-11-19 10:23:35,325 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-18).
+2026-11-19 10:23:36,486 [WARNING] Alpaca: posizioni diverse dal simulatore: {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}
+2026-11-19 10:23:36,488 [INFO] Alpaca: inviato BUY DBC x272 (pb-main-allinea-DBC)
+2026-11-19 10:23:36,488 [INFO] Alpaca: inviato BUY EFA x95 (pb-main-allinea-EFA)
+2026-11-19 10:23:36,488 [INFO] Alpaca: inviato BUY SPY x13 (pb-main-allinea-SPY)
+2026-11-19 10:23:36,488 [INFO] Alpaca: inviato BUY VNQ x103 (pb-main-allinea-VNQ)
+2026-11-19 10:23:36,488 [INFO] Alpaca: allineamento iniziale completato (non verrà più ripetuto)
+2026-11-19 10:23:36,488 [WARNING] Alpaca: ATTENZIONE posizioni diverse dal simulatore {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}

@@ -1,7 +1,56 @@
 {
- "ordini": {},
+ "ordini": {
+  "pb-main-allinea-DBC": {
+   "stato": "inviato",
+   "id": "eef160f7-3087-4830-bf31-3e7a05ba8d6f",
+   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "ticker": "DBC",
+   "lato": "BUY",
+   "qty": 272,
+   "creato": "2026-11-18",
+   "motivo": "allineamento iniziale",
+   "stop": 0.0,
+   "aggiornato_utc": "2026-11-19 10:23:35"
+  },
+  "pb-main-allinea-EFA": {
+   "stato": "inviato",
+   "id": "3ba34ff7-e5f4-4eb3-8a80-6c2d0bfe08d7",
+   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "ticker": "EFA",
+   "lato": "BUY",
+   "qty": 95,
+   "creato": "2026-11-18",
+   "motivo": "allineamento iniziale",
+   "stop": 0.0,
+   "aggiornato_utc": "2026-11-19 10:23:36"
+  },
+  "pb-main-allinea-SPY": {
+   "stato": "inviato",
+   "id": "5e2606e5-ed9b-4b9b-846d-e0f6e9430b39",
+   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "ticker": "SPY",
+   "lato": "BUY",
+   "qty": 13,
+   "creato": "2026-11-18",
+   "motivo": "allineamento iniziale",
+   "stop": 0.0,
+   "aggiornato_utc": "2026-11-19 10:23:36"
+  },
+  "pb-main-allinea-VNQ": {
+   "stato": "inviato",
+   "id": "27ac3071-795e-4983-a0d3-ba58fbbd558c",
+   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "ticker": "VNQ",
+   "lato": "BUY",
+   "qty": 103,
+   "creato": "2026-11-18",
+   "motivo": "allineamento iniziale",
+   "stop": 0.0,
+   "aggiornato_utc": "2026-11-19 10:23:36"
+  }
+ },
  "riconciliazione": {
-  "utc": "2026-11-19 10:13:41",
+  "utc": "2026-11-19 10:23:36",
   "ultimo_giorno_simulato": "2026-11-18",
   "differenze": {
    "DBC": {
@@ -20,6 +69,16 @@
     "simulatore": 103,
     "alpaca": 0
    }
+  }
+ },
+ "allineamento": {
+  "stato": "completato",
+  "utc": "2026-11-19 10:23:36",
+  "posizioni": {
+   "DBC": 272,
+   "EFA": 95,
+   "VNQ": 103,
+   "SPY": 13
   }
  }
 }
