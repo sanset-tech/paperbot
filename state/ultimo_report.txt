@@ -1,12 +1,13 @@
-Ultimo giorno processato: 2026-11-18
-Equity: 48,944.80 | Cassa: 12,097.24 | Picco: 50,000.00 | Drawdown: 2.1%
-Interessi maturati sulla liquidità: 6.84
+Ultimo giorno processato: 2026-11-19
+Equity: 48,473.07 | Cassa: 12,098.61 | Picco: 50,000.00 | Drawdown: 3.1%
+Interessi maturati sulla liquidità: 8.22
 Ultimo ribilanciamento: 2026-11-13
 Bloccato (kill switch): no
 Posizioni:
-  DBC    qty    272.0 carico     30.47 ultimo     29.51 peso 16.4% P&L -3.1%
-  EFA    qty     95.0 carico    103.77 ultimo    100.26 peso 19.5% P&L -3.4%
-  VNQ    qty    103.0 carico     96.86 ultimo     95.18 peso 20.0% P&L -1.7%
-  SPY    qty     13.0 carico    750.03 ultimo    730.20 peso 19.4% P&L -2.6%
+  DBC    qty    272.0 carico     30.47 ultimo     29.62 peso 16.6% P&L -2.8%
+  EFA    qty     95.0 carico    103.77 ultimo     98.78 peso 19.4% P&L -4.8%
+  VNQ    qty    103.0 carico     96.86 ultimo     93.47 peso 19.9% P&L -3.5%
+  SPY    qty     13.0 carico    750.03 ultimo    715.87 peso 19.2% P&L -4.6%
 Ordini per la prossima apertura:
   (nessuno)
+Alpaca: posizioni allineate al simulatore
