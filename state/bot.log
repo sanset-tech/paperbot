@@ -21,3 +21,5 @@
 2026-11-19 10:23:36,488 [INFO] Alpaca: allineamento iniziale completato (non verrà più ripetuto)
 2026-11-19 10:23:36,488 [WARNING] Alpaca: ATTENZIONE posizioni diverse dal simulatore {'DBC': {'simulatore': 272, 'alpaca': 0}, 'EFA': {'simulatore': 95, 'alpaca': 0}, 'SPY': {'simulatore': 13, 'alpaca': 0}, 'VNQ': {'simulatore': 103, 'alpaca': 0}}
 2026-11-19 22:53:20,458 [INFO] Alpaca: posizioni allineate al simulatore
+2026-11-20 00:25:09,515 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-19).
+2026-11-20 00:25:09,731 [INFO] Alpaca: posizioni allineate al simulatore
