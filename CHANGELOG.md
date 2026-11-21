@@ -11,6 +11,8 @@ cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole
   se i prezzi hanno meno di 10 minuti. Gruppo di concorrenza proprio (`prezzi-ciclo` per i cicli, unico per
   i giri di riserva) invece di `paperbot`, condiviso col bot: un ciclo di ore avrebbe bloccato il bot delle 22:07.
   Avvio manuale: un giro, oppure un ciclo con l'input `ciclo_fino_a` (HH:MM UTC).
+  (Correzione successiva: il timeout di 358 min vale anche per l'avvio manuale con `ciclo_fino_a`; la prima
+  prova del 21/11 è stata fermata dal timeout di 10 min dopo il primo giro.)
 - **Perché**: API Actions, 18-20/11: 10 esecuzioni programmate create al giorno su 38 previste (11 il 18/11
   con un avvio manuale), **tutte riuscite, nessuna cancellata o fallita**: GitHub semplicemente non crea le altre
   (throttling dei cron frequenti, ~1 all'ora con 30-45 min di ritardo). I giri delle 12:03/12:33 non sono mai

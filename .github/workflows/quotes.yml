@@ -30,7 +30,7 @@ concurrency:
 jobs:
   quotes:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ (github.event.schedule == '1 12 * * 1-5' || github.event.schedule == '49 17 * * 1-5') && 358 || 10 }}
+    timeout-minutes: ${{ (github.event.schedule == '1 12 * * 1-5' || github.event.schedule == '49 17 * * 1-5' || github.event.inputs.ciclo_fino_a != '') && 358 || 10 }}
     steps:
       - uses: actions/checkout@v4
         with:
