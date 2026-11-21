@@ -2,24 +2,35 @@ name: Prezzi in diretta
 
 on:
   schedule:
-    # Minuti "dispari" (non :00/:15/:30/:45): GitHub rinvia o salta spesso le
-    # esecuzioni a orari tondi. Seduta USA ogni 15 min (UTC, copre ora solare e legale).
+    # CICLI (principali): un job lungo che ripete i prezzi ogni 15 min con sleep, così non dipende
+    # dal cron di GitHub (diagnosi 21/11: solo 10 esecuzioni programmate su 38 al giorno).
+    # 12:01 -> 17:50 UTC (dentro il limite di 6 h per job) e 17:49 -> 21:15 UTC.
+    - cron: "1 12 * * 1-5"
+    - cron: "49 17 * * 1-5"
+    # RISERVA: un giro singolo; salta da solo se un ciclo ha aggiornato i prezzi negli ultimi 10 minuti.
+    # Minuti "dispari" (non :00/:15/:30/:45): GitHub rinvia o salta spesso le esecuzioni a orari tondi.
     - cron: "7,22,37,52 13-21 * * 1-5"
-    # Pre-apertura ridondante: il briefing (13:47 UTC) deve trovare futures freschi
     - cron: "3,33 12 * * 1-5"
   workflow_dispatch:
+    inputs:
+      ciclo_fino_a:
+        description: "Facoltativo: ripeti ogni 15 min fino a HH:MM UTC (vuoto = un giro solo)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
+# Gruppo proprio (prima era 'paperbot', condiviso col bot: un ciclo di ore avrebbe bloccato il bot).
+# I cicli non si sovrappongono tra loro; i giri di riserva hanno un gruppo unico e non restano in coda.
 concurrency:
-  group: paperbot
+  group: ${{ (github.event.schedule == '1 12 * * 1-5' || github.event.schedule == '49 17 * * 1-5') && 'prezzi-ciclo' || format('prezzi-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
   quotes:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: ${{ (github.event.schedule == '1 12 * * 1-5' || github.event.schedule == '49 17 * * 1-5') && 358 || 10 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,25 +44,13 @@ jobs:
       - name: Installa dipendenze
         run: pip install pandas numpy yfinance
 
-      - name: Scarica i prezzi
-        run: python live_quotes.py
-
-      - name: Candele e pattern per il Laboratorio
-        run: python lab_data.py || echo "candele non aggiornate"
-
-      - name: Pubblica i prezzi
+      - name: Prezzi e candele (ciclo o giro singolo) e pubblicazione
         run: |
-          git config user.name "paperbot"
-          git config user.email "paperbot@users.noreply.github.com"
-          git add docs/live.json
-          git add docs/lab_data.json 2>/dev/null || true
-          if git diff --cached --quiet; then
-            echo "Prezzi invariati"
-          else
-            git commit -q -m "Prezzi e candele $(date -u +'%H:%M') UTC"
-            for i in 1 2 3; do
-              git pull -q --rebase -X theirs origin main && git push -q && break
-              echo "push rifiutato, nuovo tentativo"; sleep 5
-            done
-            [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "::error::salvataggio non riuscito"; exit 1; }
-          fi
+          case "${{ github.event.schedule }}" in
+            "1 12 * * 1-5")  bash scripts/ciclo_prezzi.sh 17:50 ;;
+            "49 17 * * 1-5") bash scripts/ciclo_prezzi.sh 21:15 ;;
+            "")  # avvio manuale: un giro sempre, oppure un ciclo fino all'ora indicata
+                 if [ -n "${{ github.event.inputs.ciclo_fino_a }}" ]; then bash scripts/ciclo_prezzi.sh "${{ github.event.inputs.ciclo_fino_a }}"
+                 else SALTA_SE_MIN=0 bash scripts/ciclo_prezzi.sh singolo; fi ;;
+            *)               bash scripts/ciclo_prezzi.sh singolo ;;
+          esac

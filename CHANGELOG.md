@@ -3,6 +3,22 @@
 Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
 cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
 
+## 2026-11-21 — tecnica: prezzi in diretta con un ciclo invece che col solo cron
+- **Cosa**: `quotes.yml` ora avvia due job lunghi che ripetono `live_quotes.py` + `lab_data.py` ogni 15 minuti
+  con sleep e pubblicano a ogni giro (pull --rebase, 3 tentativi): cron `1 12` (fino alle 17:50 UTC) e
+  `49 17` (fino alle 21:15 UTC), entrambi sotto il limite di 6 h per job. Logica in `scripts/ciclo_prezzi.sh`.
+  I cron di prima (`7,22,37,52 13-21`, `3,33 12`) restano come riserva: un giro singolo, che salta da solo
+  se i prezzi hanno meno di 10 minuti. Gruppo di concorrenza proprio (`prezzi-ciclo` per i cicli, unico per
+  i giri di riserva) invece di `paperbot`, condiviso col bot: un ciclo di ore avrebbe bloccato il bot delle 22:07.
+  Avvio manuale: un giro, oppure un ciclo con l'input `ciclo_fino_a` (HH:MM UTC).
+- **Perché**: API Actions, 18-20/11: 10 esecuzioni programmate create al giorno su 38 previste (11 il 18/11
+  con un avvio manuale), **tutte riuscite, nessuna cancellata o fallita**: GitHub semplicemente non crea le altre
+  (throttling dei cron frequenti, ~1 all'ora con 30-45 min di ritardo). I giri delle 12:03/12:33 non sono mai
+  partiti; primo aggiornamento 13:05-13:11 UTC. Il gruppo condiviso non era la causa (zero cancellazioni), ma
+  con un job lungo lo sarebbe diventato.
+- Provato in locale contro un repository finto con push concorrenti: 5 giri pubblicati su 5, nessun conflitto.
+- **Annullare**: `git revert` di questo commit (tornano i soli cron, con il gruppo `paperbot`).
+
 ## 2026-11-21 — tecnica: stato degli ordini Alpaca aggiornato
 - **Cosa**: `bot/alpaca_bridge.py` a ogni esecuzione rilegge da Alpaca (`get_order_by_client_id`, solo
   lettura, anche a mercato aperto) gli ordini del registro ancora "inviato" e non in uno stato finale, e
