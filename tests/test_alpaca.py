@@ -49,18 +49,23 @@ CFG = load_config(Path(__file__).resolve().parents[1] / "config.json")
 
 
 class FakeClient:
-    def __init__(self, open_=False, positions=None, fail=None, open_orders=None):
+    def __init__(self, open_=False, positions=None, fail=None, open_orders=None, orders=None):
         self.sent, self.cancelled, self.open_ = [], [], open_
         self.positions = positions or {}
         self.fail = fail  # eccezione da sollevare all'invio
         self.open_orders = open_orders or {}
+        self.orders = orders or {}  # client_order_id -> ordine già presente su Alpaca (con status)
+        self.lookups = []
 
     def get_clock(self):
         return SimpleNamespace(is_open=self.open_)
 
     def get_order_by_client_id(self, cid):
+        self.lookups.append(cid)
+        if cid in self.orders:
+            return self.orders[cid]
         if any(r.client_order_id == cid for r in self.sent):
-            return SimpleNamespace(id="x")
+            return SimpleNamespace(id="x", status="accepted")
         raise RuntimeError("404 order not found")
 
     def submit_order(self, order_data):
@@ -278,3 +283,67 @@ def test_allineamento_rinviato_se_ordine_in_coda_sul_ticker(tmp_path):
     br.sync(broker_with([Order("SPY", "SELL", 13, "2026-11-18", "rotazione: esce")], _pos()))
     assert "SPY" not in [r.symbol for r in c.sent if r.side == OrderSide.BUY]
     assert br.ledger.data["allineamento"]["stato"] == "in corso"
+
+
+def _registro_allineamento_19_11(path):
+    """Il registro reale del 19/11: 4 ordini di allineamento fermi a 'inviato' / PENDING_NEW."""
+    ordini = {f"pb-main-allinea-{t}": {"stato": "inviato", "id": f"id-{t}", "stato_alpaca": "OrderStatus.PENDING_NEW",
+                                        "ticker": t, "lato": "BUY", "qty": q, "creato": "2026-11-18",
+                                        "motivo": "allineamento iniziale", "stop": 0.0}
+              for t, q in (("DBC", 272), ("EFA", 95), ("SPY", 13), ("VNQ", 103))}
+    path.write_text(json.dumps({"ordini": ordini, "riconciliazione": None,
+                                "allineamento": {"stato": "completato"}}))
+
+
+def test_stato_ordini_inviati_aggiornato_dopo_l_esecuzione(tmp_path):
+    _registro_allineamento_19_11(tmp_path / "alpaca_orders.json")
+    filled = {f"pb-main-allinea-{t}": SimpleNamespace(id=f"id-{t}", status="filled", filled_qty=str(q),
+                                                      filled_avg_price="25.5")
+              for t, q in (("DBC", 272), ("EFA", 95), ("SPY", 13))}
+    filled["pb-main-allinea-VNQ"] = SimpleNamespace(id="id-VNQ", status="accepted")  # non ancora eseguito
+    c = FakeClient(orders=filled, positions={"DBC": 272, "EFA": 95, "SPY": 13})
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    ev = br.sync(broker_with([], _pos()))
+    br.ledger.save()
+    reg = json.loads((tmp_path / "alpaca_orders.json").read_text())["ordini"]
+    dbc = reg["pb-main-allinea-DBC"]
+    assert dbc["stato"] == "eseguito" and dbc["stato_alpaca"] == "filled"
+    assert dbc["qty_eseguita"] == 272 and dbc["prezzo_medio"] == 25.5
+    assert reg["pb-main-allinea-VNQ"]["stato"] == "inviato" and reg["pb-main-allinea-VNQ"]["stato_alpaca"] == "accepted"
+    assert any("ora filled" in e for e in ev)
+    assert c.sent == []  # nessun reinvio, l'allineamento resta completato
+
+    # esecuzione successiva: gli ordini finali non vengono più riletti, quello in attesa sì
+    c.lookups.clear()
+    c.orders["pb-main-allinea-VNQ"] = SimpleNamespace(id="id-VNQ", status="filled", filled_qty="103")
+    br = bridge(tmp_path, c, allineamento_iniziale=True)
+    br.sync(broker_with([], _pos()))
+    assert c.lookups == ["pb-main-allinea-VNQ"]
+    assert br.ledger.get("pb-main-allinea-VNQ")["stato"] == "eseguito"
+
+
+def test_stato_aggiornato_anche_a_mercato_aperto_e_ordine_eseguito_mai_reinviato(tmp_path):
+    o = Order("SPY", "BUY", 5, "2026-11-18", "t", stop=580)
+    c = FakeClient()
+    br = bridge(tmp_path, c)
+    br.sync(broker_with([o]))
+    br.ledger.save()
+    cid = "pb-main-2026-11-18-SPY-BUY"
+    assert br.ledger.get(cid)["stato_alpaca"] == "accepted"
+    c.orders[cid] = SimpleNamespace(id="id1", status="canceled")
+    c.open_ = True
+    br = bridge(tmp_path, c)
+    ev = br.sync(broker_with([o]))
+    assert br.ledger.get(cid)["stato"] == "annullato" and any("mercato aperto" in e for e in ev)
+    br.ledger.save()
+    c.open_ = False
+    bridge(tmp_path, c).sync(broker_with([o]))  # ordine chiuso: mai reinviato con lo stesso id
+    assert len(c.sent) == 1
+
+
+def test_stato_non_leggibile_lascia_il_record(tmp_path):
+    _registro_allineamento_19_11(tmp_path / "alpaca_orders.json")
+    br = bridge(tmp_path, FakeClient())
+    ev = br.refresh()
+    assert br.ledger.get("pb-main-allinea-SPY")["stato"] == "inviato"
+    assert sum("non leggibile" in e for e in ev) == 4

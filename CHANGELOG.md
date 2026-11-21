@@ -3,6 +3,19 @@
 Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
 cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
 
+## 2026-11-21 — tecnica: stato degli ordini Alpaca aggiornato
+- **Cosa**: `bot/alpaca_bridge.py` a ogni esecuzione rilegge da Alpaca (`get_order_by_client_id`, solo
+  lettura, anche a mercato aperto) gli ordini del registro ancora "inviato" e non in uno stato finale, e
+  aggiorna `stato_alpaca` (ora scritto come `filled`, `accepted`… invece di `OrderStatus.X`), `qty_eseguita`,
+  `prezzo_medio`. Stati finali: `filled` → stato "eseguito"; `canceled`/`expired`/`rejected`/`replaced` →
+  "annullato". Gli ordini "eseguito"/"annullato" contano come già gestiti: mai reinviati.
+- **Perché**: diagnosi 21/11: i 4 ordini di allineamento del 19/11 (DBC 272, EFA 95, SPY 13, VNQ 103)
+  erano ancora "inviato"/`PENDING_NEW` dopo 5 esecuzioni, anche se la riconciliazione dava posizioni
+  allineate. Lo stato si scriveva solo all'invio. Si sistemano da soli alla prossima esecuzione del bot.
+- 3 test nuovi in `tests/test_alpaca.py` (registro reale del 19/11 col client finto): falliscono senza la
+  correzione, 47/47 passano con.
+- **Annullare**: `git revert` di questo commit (i campi in più nel registro vengono ignorati).
+
 ## 2026-11-19 — tecnica (richiesta dell'utente)
 - **Conto ombra Alpaca, solo paper** (`bot/alpaca_bridge.py`, agganciato in `run_paper.py` dopo il salvataggio
   dello stato): gli ordini in coda del simulatore vengono replicati su Alpaca con `paper=True` fisso.

@@ -93,6 +93,19 @@ def _err(e) -> str:
     return f"{type(e).__name__}: {str(e)[:300]}"
 
 
+# Stati finali di Alpaca e stato corrispondente nel registro. Gli stati del registro che
+# indicano un ordine già gestito (mai da reinviare) sono in GESTITI.
+FINALI = {"filled": "eseguito", "canceled": "annullato", "expired": "annullato",
+          "rejected": "annullato", "replaced": "annullato", "done_for_day": "annullato"}
+GESTITI = ("inviato", "eseguito", "annullato")
+
+
+def _status(s) -> str:
+    """'OrderStatus.FILLED', OrderStatus.FILLED o 'filled' -> 'filled'."""
+    s = getattr(s, "value", s)
+    return str(s or "").split(".")[-1].lower()
+
+
 class AlpacaBridge:
     def __init__(self, cfg: dict, ledger_path: Path, client, account: str = "main"):
         self.s = settings(cfg)
@@ -161,7 +174,7 @@ class AlpacaBridge:
 
     def _submit(self, cid, req, info: dict) -> str:
         rec = self.ledger.get(cid) or {}
-        if rec.get("stato") == "inviato":
+        if rec.get("stato") in GESTITI:
             return f"Alpaca: {cid} già inviato, salto"
         if rec.get("tentativi", 0) >= self.s["max_tentativi"]:
             return f"Alpaca: {cid} abbandonato dopo {rec['tentativi']} tentativi falliti"
@@ -170,7 +183,7 @@ class AlpacaBridge:
             return f"Alpaca: {cid} già presente su Alpaca, registrato"
         try:
             od = self.client.submit_order(order_data=req)
-            self.ledger.put(cid, stato="inviato", id=str(od.id), stato_alpaca=str(getattr(od, "status", "")),
+            self.ledger.put(cid, stato="inviato", id=str(od.id), stato_alpaca=_status(getattr(od, "status", "")),
                             **info)
             return f"Alpaca: inviato {info['lato']} {info['ticker']} x{info['qty']} ({cid})"
         except Exception as e:
@@ -178,9 +191,38 @@ class AlpacaBridge:
             log.error("Alpaca: invio %s fallito: %s", cid, _err(e))
             return f"Alpaca: ERRORE su {cid}"
 
+    def refresh(self) -> list[str]:
+        """Rilegge da Alpaca gli ordini inviati che non sono ancora in uno stato finale e aggiorna
+        stato/stato_alpaca nel registro (prima restava per sempre lo stato del momento dell'invio).
+        Solo lettura su Alpaca; un errore lascia il record com'è e si riprova alla prossima esecuzione."""
+        out = []
+        for cid, rec in sorted(self.ledger.data["ordini"].items()):
+            if rec.get("stato") != "inviato" or _status(rec.get("stato_alpaca")) in FINALI:
+                continue
+            try:
+                od = self.client.get_order_by_client_id(cid)
+            except Exception as e:
+                out.append(f"Alpaca: stato di {cid} non leggibile ({_err(e)})")
+                continue
+            st = _status(getattr(od, "status", ""))
+            if not st or st == _status(rec.get("stato_alpaca")):
+                continue
+            upd = {"stato_alpaca": st}
+            if st in FINALI:
+                upd["stato"] = FINALI[st]
+            for campo, attr in (("qty_eseguita", "filled_qty"), ("prezzo_medio", "filled_avg_price")):
+                v = getattr(od, attr, None)
+                if v not in (None, ""):
+                    upd[campo] = float(v)
+            self.ledger.put(cid, **upd)
+            if st == "rejected":
+                log.warning("Alpaca: ordine %s rifiutato da Alpaca", cid)
+            out.append(f"Alpaca: {cid} ora {st}")
+        return out
+
     # ---------- sincronizzazione ----------
     def sync(self, broker) -> list[str]:
-        ev = []
+        ev = self.refresh()  # anche a mercato aperto: è solo lettura
         try:
             if self.client.get_clock().is_open:
                 ev.append("Alpaca: mercato aperto, ordini non inviati (eseguirebbero a prezzi diversi "
@@ -213,7 +255,7 @@ class AlpacaBridge:
 
     def _sell(self, broker, o, cid, info) -> list[str]:
         rec = self.ledger.get(cid) or {}
-        if rec.get("stato") in ("inviato", "saltato"):
+        if rec.get("stato") in GESTITI + ("saltato",):
             return [f"Alpaca: {cid} già gestito, salto"]
         if self._exists(cid):
             self.ledger.put(cid, stato="inviato", nota="già presente su Alpaca", **info)
@@ -255,7 +297,7 @@ class AlpacaBridge:
                 tutti_ok = False
                 continue
             rec = self.ledger.get(cid) or {}
-            if rec.get("stato") == "inviato":
+            if rec.get("stato") in GESTITI:
                 continue
             delta = int(p.qty) - self._alpaca_qty(t)
             if delta <= 0:
@@ -265,7 +307,7 @@ class AlpacaBridge:
             info = dict(ticker=t, lato="BUY", qty=delta, creato=broker.last_processed, motivo="allineamento iniziale",
                         stop=round(p.stop, 2))
             out.append(self._submit(cid, self.buy_request(o, broker.last_price.get(t), cid), info))
-            if (self.ledger.get(cid) or {}).get("stato") != "inviato":
+            if (self.ledger.get(cid) or {}).get("stato") not in GESTITI:
                 tutti_ok = False
         if tutti_ok:
             self.ledger.data["allineamento"] = {
