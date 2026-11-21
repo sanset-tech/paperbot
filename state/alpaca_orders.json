@@ -1,56 +1,64 @@
 {
  "ordini": {
   "pb-main-allinea-DBC": {
-   "stato": "inviato",
+   "stato": "eseguito",
    "id": "eef160f7-3087-4830-bf31-3e7a05ba8d6f",
-   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "stato_alpaca": "filled",
    "ticker": "DBC",
    "lato": "BUY",
    "qty": 272,
    "creato": "2026-11-18",
    "motivo": "allineamento iniziale",
    "stop": 0.0,
-   "aggiornato_utc": "2026-11-19 10:23:35"
+   "aggiornato_utc": "2026-11-21 12:27:54",
+   "qty_eseguita": 272.0,
+   "prezzo_medio": 29.76
   },
   "pb-main-allinea-EFA": {
-   "stato": "inviato",
+   "stato": "eseguito",
    "id": "3ba34ff7-e5f4-4eb3-8a80-6c2d0bfe08d7",
-   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "stato_alpaca": "filled",
    "ticker": "EFA",
    "lato": "BUY",
    "qty": 95,
    "creato": "2026-11-18",
    "motivo": "allineamento iniziale",
    "stop": 0.0,
-   "aggiornato_utc": "2026-11-19 10:23:36"
+   "aggiornato_utc": "2026-11-21 12:27:54",
+   "qty_eseguita": 95.0,
+   "prezzo_medio": 100.513053
   },
   "pb-main-allinea-SPY": {
-   "stato": "inviato",
+   "stato": "eseguito",
    "id": "5e2606e5-ed9b-4b9b-846d-e0f6e9430b39",
-   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "stato_alpaca": "filled",
    "ticker": "SPY",
    "lato": "BUY",
    "qty": 13,
    "creato": "2026-11-18",
    "motivo": "allineamento iniziale",
    "stop": 0.0,
-   "aggiornato_utc": "2026-11-19 10:23:36"
+   "aggiornato_utc": "2026-11-21 12:27:54",
+   "qty_eseguita": 13.0,
+   "prezzo_medio": 737.53
   },
   "pb-main-allinea-VNQ": {
-   "stato": "inviato",
+   "stato": "eseguito",
    "id": "27ac3071-795e-4983-a0d3-ba58fbbd558c",
-   "stato_alpaca": "OrderStatus.PENDING_NEW",
+   "stato_alpaca": "filled",
    "ticker": "VNQ",
    "lato": "BUY",
    "qty": 103,
    "creato": "2026-11-18",
    "motivo": "allineamento iniziale",
    "stop": 0.0,
-   "aggiornato_utc": "2026-11-19 10:23:36"
+   "aggiornato_utc": "2026-11-21 12:27:54",
+   "qty_eseguita": 103.0,
+   "prezzo_medio": 94.787184
   }
  },
  "riconciliazione": {
-  "utc": "2026-11-21 07:10:11",
+  "utc": "2026-11-21 12:27:54",
   "ultimo_giorno_simulato": "2026-11-20",
   "differenze": {}
  },

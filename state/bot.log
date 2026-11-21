@@ -30,3 +30,9 @@
 2026-11-21 00:28:33,704 [INFO] Alpaca: posizioni allineate al simulatore
 2026-11-21 07:10:11,524 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-20).
 2026-11-21 07:10:11,800 [INFO] Alpaca: posizioni allineate al simulatore
+2026-11-21 12:27:54,443 [INFO] Nessuna nuova barra chiusa da processare (ultima: 2026-11-20).
+2026-11-21 12:27:54,721 [INFO] Alpaca: pb-main-allinea-DBC ora filled
+2026-11-21 12:27:54,721 [INFO] Alpaca: pb-main-allinea-EFA ora filled
+2026-11-21 12:27:54,721 [INFO] Alpaca: pb-main-allinea-SPY ora filled
+2026-11-21 12:27:54,721 [INFO] Alpaca: pb-main-allinea-VNQ ora filled
+2026-11-21 12:27:54,721 [INFO] Alpaca: posizioni allineate al simulatore
