@@ -3,6 +3,18 @@
 Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
 cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
 
+## 2026-11-25 — tecnica: cicli dei prezzi anticipati e con durata massima
+- **Cosa**: in `quotes.yml` il primo ciclo passa da cron `1 12` a `31 10` (fine sempre 17:50 UTC), il secondo da
+  `49 17` a `1 16` (fine 21:15 UTC). `scripts/ciclo_prezzi.sh` ora chiude il ciclo dopo al massimo 350 min
+  (`DURATA_MAX_MIN`), così un avvio puntuale non viene ucciso dal timeout di 358 min. Il secondo ciclo, se arriva
+  mentre il primo gira, resta in coda nel gruppo `prezzi-ciclo` e parte appena il primo finisce. Riserve invariate.
+  Nuovo test `tests/test_ciclo_prezzi.py` (repository finto): fallisce con lo script vecchio, passa col nuovo (49 test).
+- **Perché**: GitHub ha avviato il cron `1 12` alle 13:12 UTC il 23/11 e alle 13:11 il 24/11 (~70 min di ritardo),
+  e le riserve `3,33 12` non sono mai state create: zero aggiornamenti tra 12:00 e 13:10, margine sulle 13:45 di
+  soli ~33 min. Il ciclo in sé funziona: 32 (23/11) e 36 (24/11) commit di prezzi su 38 previsti, contro i 10 di prima.
+  Con ~70 min di ritardo il primo ciclo partirà verso le 11:40, coprendo il pre-apertura.
+- **Annullare**: `git revert` di questo commit.
+
 ## 2026-11-25 — tecnica
 - **Paperbot, salvataggio più tenace**: 6 tentativi di push con attese crescenti (10-50 s) invece di 3 da 5 s.
   Motivo: esecuzione delle 00:30 UTC fallita per "Internal Server Error" di GitHub su tutti e 3 i push in 15 s.

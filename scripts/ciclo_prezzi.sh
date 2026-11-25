@@ -6,12 +6,15 @@
 #   scripts/ciclo_prezzi.sh 17:50        ciclo fino alle 17:50 UTC
 #   scripts/ciclo_prezzi.sh singolo      un giro solo (cron di riserva): salta se i prezzi hanno < SALTA_SE_MIN minuti
 #
-# Variabili per i test: PREZZI_CMD (comando di un giro), INTERVALLO_MIN (default 15) o INTERVALLO_S, SALTA_SE_MIN (default 10).
+# Variabili per i test: PREZZI_CMD (comando di un giro), INTERVALLO_MIN (default 15) o INTERVALLO_S, SALTA_SE_MIN (default 10),
+# DURATA_MAX_MIN (default 350) o DURATA_MAX_S: il ciclo finisce comunque prima del timeout di 358 min del job.
 set -u
 FINE="${1:-singolo}"
 INTERVALLO_MIN="${INTERVALLO_MIN:-15}"
 INTERVALLO_S="${INTERVALLO_S:-$((INTERVALLO_MIN * 60))}"
 SALTA_SE_MIN="${SALTA_SE_MIN:-10}"
+DURATA_MAX_MIN="${DURATA_MAX_MIN:-350}"
+DURATA_MAX_S="${DURATA_MAX_S:-$((DURATA_MAX_MIN * 60))}"
 PREZZI_CMD="${PREZZI_CMD:-}"
 
 git config user.name "paperbot"
@@ -74,6 +77,11 @@ fi
 [[ "$FINE" =~ ^[0-2][0-9]:[0-5][0-9](:[0-5][0-9])?$ ]] || { echo "::error::ora di fine non valida: $FINE (serve HH:MM UTC)"; exit 1; }
 fine_s=$(date -u -d "$(date -u +%F) $FINE" +%s)
 inizio=$(date -u +%s)
+limite_s=$((inizio + DURATA_MAX_S))
+if [ "$limite_s" -lt "$fine_s" ]; then  # partito presto: si ferma prima del timeout, il ciclo dopo continua
+  echo "Ciclo limitato a $((DURATA_MAX_S / 60)) min: fine anticipata alle $(date -u -d "@$limite_s" +'%H:%M') UTC"
+  fine_s=$limite_s
+fi
 n=0
 while :; do
   giro || true
