@@ -30,7 +30,7 @@ jobs:
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-        run: python intraday_lab.py --out risultati_intraday 2>&1 | tee risultati_intraday_log.txt
+        run: python intraday_lab.py --finale --out risultati_intraday 2>&1 | tee risultati_intraday_log.txt
       - name: Salva risultati sul branch
         if: always()
         run: |

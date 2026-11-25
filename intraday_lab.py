@@ -161,7 +161,7 @@ def prepara(df: pd.DataFrame, ema_f: int, ema_s: int) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------- segnali e operazioni
-def operazioni(t: str, o: pd.DataFrame, minuti: int, target_r=2.0) -> list[dict]:
+def operazioni(t: str, o: pd.DataFrame, minuti: int, target_r=2.0, stop_atr=None) -> list[dict]:
     idx = o.index
     day = idx.normalize().to_numpy()
     mins = (idx.hour * 60 + idx.minute).to_numpy()
@@ -185,6 +185,8 @@ def operazioni(t: str, o: pd.DataFrame, minuti: int, target_r=2.0) -> list[dict]
             continue
         e = O[i + 1]
         stop = (min(L[i], L[i - 1]) - 0.1 * atr[i]) if lato == 1 else (max(H[i], H[i - 1]) + 0.1 * atr[i])
+        if stop_atr:
+            stop = e - lato * stop_atr * atr[i]
         rischio = (e - stop) * lato
         if rischio < 0.25 * atr[i]:
             stop = e - lato * 0.25 * atr[i]
@@ -274,10 +276,14 @@ def main():
     ap.add_argument("--end", default=str((pd.Timestamp.now("UTC") - pd.Timedelta(days=1)).date()))
     ap.add_argument("--split", default="2023-01-01", help="da qui in poi: verifica fuori campione")
     ap.add_argument("--synthetic", action="store_true")
+    ap.add_argument("--finale", action="store_true", help="test finale pre-dichiarato: SPY+QQQ, 60 min, EMA 20/50, stop 1 ATR")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    raw = sintetici(UNIVERSO[:3]) if a.synthetic else scarica_alpaca(UNIVERSO, a.start, a.end, Path("data_intraday"))
+    univ = ["SPY", "QQQ"] if a.finale else UNIVERSO
+    raw = sintetici(univ[:3]) if a.synthetic else scarica_alpaca(univ, a.start, a.end, Path("data_intraday"))
+    if a.finale:
+        return finale(raw, out, pd.Timestamp(a.split))
     split = pd.Timestamp(a.split)
     report = {"regole": __doc__.split("Uso:")[0].strip(), "dati": {t: [str(d.index[0]), str(d.index[-1]), len(d)] for t, d in raw.items()},
               "varianti": {}}
@@ -305,6 +311,30 @@ def main():
             report["varianti"][nome] = v
             print(nome, json.dumps(v["costi_3bps"]["intero_periodo"]))
     json.dump(report, open(out / "report.json", "w"), indent=1, default=str)
+
+
+def finale(raw, out: Path, split: pd.Timestamp):
+    """Test finale con criteri dichiarati PRIMA di vedere il risultato."""
+    barre = {t: sessione(d, 60) for t, d in raw.items()}
+    trades = pd.DataFrame([x for t, d in barre.items() for x in operazioni(t, prepara(d, 20, 50), 60, stop_atr=1.0)])
+    res = {"versione": "SPY+QQQ, 60 min, EMA 20/50, stop 1 ATR, obiettivo 2R, chiusura a fine seduta",
+           "criteri": "PF >= 1.2 con 1 bps sia fino al 2022 sia dal 2023, e CAGR > 0 con 3 bps sull'intero periodo"}
+    for bps in (0.0, 1.0, 3.0):
+        f, c = simula(trades, costo_bps=bps)
+        res[f"costi_{bps:g}bps"] = {"intero_periodo": metriche(f, c),
+                                    "fino_al_2022": metriche(*simula(trades[trades.entrata_ts < split], costo_bps=bps)),
+                                    "dal_2023": metriche(*simula(trades[trades.entrata_ts >= split], costo_bps=bps))}
+        if bps == 1.0:
+            ann = c.groupby(c.index.year).last()
+            base = pd.concat([pd.Series({ann.index[0] - 1: 50000.0}), ann])
+            res["rendimenti_annui_1bps_%"] = {int(k): round(100 * x, 1) for k, x in base.pct_change().dropna().items()}
+            f.to_csv(out / "trades_finale.csv", index=False)
+    pf = lambda m: (m.get("profit_factor") or 0)
+    r1 = res["costi_1bps"]
+    res["promosso"] = bool(pf(r1["fino_al_2022"]) >= 1.2 and pf(r1["dal_2023"]) >= 1.2
+                           and (res["costi_3bps"]["intero_periodo"].get("CAGR_%") or -1) > 0)
+    json.dump(res, open(out / "finale.json", "w"), indent=1, default=str)
+    print(json.dumps(res, indent=1, default=str))
 
 
 if __name__ == "__main__":
