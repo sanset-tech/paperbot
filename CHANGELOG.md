@@ -3,6 +3,12 @@
 Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
 cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
 
+## 2026-11-25 — tecnica
+- **Paperbot, salvataggio più tenace**: 6 tentativi di push con attese crescenti (10-50 s) invece di 3 da 5 s.
+  Motivo: esecuzione delle 00:30 UTC fallita per "Internal Server Error" di GitHub su tutti e 3 i push in 15 s.
+  Nessun dato perso: era un giro senza nuove barre (24/11 già salvato alle 22:59 UTC), Alpaca allineato.
+- Annullare: `git revert` di questo commit.
+
 ## 2026-11-21 — tecnica: prezzi in diretta con un ciclo invece che col solo cron
 - **Cosa**: `quotes.yml` ora avvia due job lunghi che ripetono `live_quotes.py` + `lab_data.py` ogni 15 minuti
   con sleep e pubblicano a ogni giro (pull --rebase, 3 tentativi): cron `1 12` (fino alle 17:50 UTC) e

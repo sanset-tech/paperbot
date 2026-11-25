@@ -111,9 +111,11 @@ jobs:
             echo "Nessuna modifica da salvare"
           else
             git commit -m "Paperbot: aggiornamento $(date -u +'%Y-%m-%d %H:%M') UTC"
-            for i in 1 2 3; do
+            # GitHub a volte risponde "Internal Server Error" per qualche minuto (25/11 00:30 UTC):
+            # 6 tentativi con attese crescenti (10..50 s, circa 2,5 minuti in tutto)
+            for i in 1 2 3 4 5 6; do
               git pull -q --rebase -X theirs origin main && git push -q && break
-              echo "push rifiutato, nuovo tentativo"; sleep 5
+              [ $i -lt 6 ] && { echo "push rifiutato, nuovo tentativo tra $((i * 10)) s"; sleep $((i * 10)); }
             done
             [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || { echo "::error::salvataggio non riuscito"; exit 1; }
           fi
