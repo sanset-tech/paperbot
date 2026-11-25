@@ -28,7 +28,7 @@ jobs:
       - run: pip install pandas numpy yfinance matplotlib
       - name: Backtest
         run: |
-          for v in base A_settori_usa B_difensivi C_tutti; do
+          for v in base $(ls config_*.json | sed "s/config_//;s/.json//"); do
             cfg=config_$v.json; [ "$v" = base ] && cfg=config.json
             python run_backtest.py --config $cfg --out out/$v/dal_2005 > /dev/null
             python run_backtest.py --config $cfg --start 2015-01-01 --out out/$v/dal_2015 > /dev/null
@@ -42,19 +42,21 @@ jobs:
           import json
           periodi = ["dal_2005", "dal_2015", "dal_2021", "ultimi_3_anni"]
           res = {}
-          for v in ["base", "A_settori_usa", "B_difensivi", "C_tutti"]:
+          import glob
+          varianti = [f[7:-5] for f in sorted(glob.glob("config_*.json"))]
+          for v in ["base"] + varianti:
               res[v] = {}
               for p in periodi:
                   s = json.load(open(f"out/{v}/{p}/report.json"))["strategia"]
                   res[v][p] = {k: s.get(k) for k in ["CAGR_%", "sharpe", "max_drawdown_%", "volatilita_%", "operazioni", "profit_factor"]}
-          for v in ["A_settori_usa", "B_difensivi", "C_tutti"]:
+          for v in varianti:
               ok = all(res[v][p]["sharpe"] > res["base"][p]["sharpe"]
                        and res[v][p]["max_drawdown_%"] >= res["base"][p]["max_drawdown_%"] - 1.0 for p in periodi)
               res[v]["approvabile_secondo_governance"] = ok
           json.dump(res, open("risultati/confronto.json", "w"), indent=1)
           print(json.dumps(res, indent=1))
           PY
-          cp -r out risultati/dettaglio
+          rm -rf risultati/dettaglio && cp -r out risultati/dettaglio
       - name: Salva risultati sul branch
         run: |
           git config user.name "paperbot-esperimento"

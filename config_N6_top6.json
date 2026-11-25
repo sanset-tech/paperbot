@@ -9,10 +9,7 @@
     "IEF",
     "GLD",
     "DBC",
-    "VNQ",
-    "TIP",
-    "LQD",
-    "EWJ"
+    "VNQ"
   ],
   "data": {
     "source": "yfinance",
@@ -35,7 +32,7 @@
   "strategy": {
     "type": "rotation",
     "trend_sma": 200,
-    "top_n": 5,
+    "top_n": 6,
     "score_lookbacks": [
       21,
       63,

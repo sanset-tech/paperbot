@@ -9,19 +9,7 @@
     "IEF",
     "GLD",
     "DBC",
-    "VNQ",
-    "XLK",
-    "XLE",
-    "XLV",
-    "XLF",
-    "XLI",
-    "XLP",
-    "XLU",
-    "XLY",
-    "XLB",
-    "TIP",
-    "LQD",
-    "EWJ"
+    "VNQ"
   ],
   "data": {
     "source": "yfinance",
@@ -44,7 +32,7 @@
   "strategy": {
     "type": "rotation",
     "trend_sma": 200,
-    "top_n": 5,
+    "top_n": 3,
     "score_lookbacks": [
       21,
       63,
@@ -64,7 +52,7 @@
   },
   "risk": {
     "risk_per_trade": 0.01,
-    "max_position_pct": 0.2,
+    "max_position_pct": 0.34,
     "max_gross_exposure": 1.0,
     "max_positions": 6,
     "drawdown_reduce_at": 0.15,
