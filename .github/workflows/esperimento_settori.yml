@@ -1,0 +1,64 @@
+name: Esperimento settori
+
+# Solo sul branch esperimento-settori: confronta il sistema attuale (config.json)
+# con 3 universi allargati, sugli stessi dati reali. Non tocca main, lo stato del bot
+# né Alpaca. Salva il risultato in risultati/ su QUESTO branch.
+
+on:
+  push:
+    branches: [esperimento-settori]
+    paths: ["config_*.json", ".github/workflows/esperimento_settori.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: esperimento-settori
+  cancel-in-progress: false
+
+jobs:
+  confronto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install pandas numpy yfinance matplotlib
+      - name: Backtest
+        run: |
+          for v in base A_settori_usa B_difensivi C_tutti; do
+            cfg=config_$v.json; [ "$v" = base ] && cfg=config.json
+            python run_backtest.py --config $cfg --out out/$v/dal_2005 > /dev/null
+            python run_backtest.py --config $cfg --start 2015-01-01 --out out/$v/dal_2015 > /dev/null
+            python run_backtest.py --config $cfg --start 2021-01-01 --out out/$v/dal_2021 > /dev/null
+            python run_backtest.py --config $cfg --start 2023-11-01 --out out/$v/ultimi_3_anni > /dev/null
+          done
+      - name: Confronto
+        run: |
+          mkdir -p risultati
+          python - <<'PY'
+          import json
+          periodi = ["dal_2005", "dal_2015", "dal_2021", "ultimi_3_anni"]
+          res = {}
+          for v in ["base", "A_settori_usa", "B_difensivi", "C_tutti"]:
+              res[v] = {}
+              for p in periodi:
+                  s = json.load(open(f"out/{v}/{p}/report.json"))["strategia"]
+                  res[v][p] = {k: s.get(k) for k in ["CAGR_%", "sharpe", "max_drawdown_%", "volatilita_%", "operazioni", "profit_factor"]}
+          for v in ["A_settori_usa", "B_difensivi", "C_tutti"]:
+              ok = all(res[v][p]["sharpe"] > res["base"][p]["sharpe"]
+                       and res[v][p]["max_drawdown_%"] >= res["base"][p]["max_drawdown_%"] - 1.0 for p in periodi)
+              res[v]["approvabile_secondo_governance"] = ok
+          json.dump(res, open("risultati/confronto.json", "w"), indent=1)
+          print(json.dumps(res, indent=1))
+          PY
+          cp -r out risultati/dettaglio
+      - name: Salva risultati sul branch
+        run: |
+          git config user.name "paperbot-esperimento"
+          git config user.email "actions@users.noreply.github.com"
+          git add risultati
+          git commit -m "Risultati esperimento settori" || exit 0
+          git push
