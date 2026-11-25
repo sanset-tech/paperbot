@@ -1,0 +1,42 @@
+name: Esperimento intraday
+
+# Solo sul branch esperimento-intraday: backtest del metodo manuale (trend + EMA + candele)
+# su candele da 30 e 60 minuti scaricate da Alpaca (sola lettura dei dati, nessun ordine).
+# Non tocca main, lo stato del bot né il conto. Salva i risultati su QUESTO branch.
+
+on:
+  push:
+    branches: [esperimento-intraday]
+    paths: ["intraday_lab.py", ".github/workflows/esperimento_intraday.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: esperimento-intraday
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install pandas numpy alpaca-py
+      - name: Backtest intraday
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python intraday_lab.py --out risultati_intraday 2>&1 | tee risultati_intraday_log.txt
+      - name: Salva risultati sul branch
+        if: always()
+        run: |
+          mkdir -p risultati_intraday && mv -f risultati_intraday_log.txt risultati_intraday/log.txt || true
+          git config user.name "paperbot-esperimento"
+          git config user.email "actions@users.noreply.github.com"
+          git add risultati_intraday
+          git commit -m "Risultati esperimento intraday" || exit 0
+          git push
