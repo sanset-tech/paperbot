@@ -1,0 +1,549 @@
+{
+ "regole": "Laboratorio intraday: il metodo manuale (trend + medie esponenziali + candele d'inversione) messo alla prova.\n\nSolo backtest. Non tocca lo stato del bot, non manda ordini.\n\nRegole (versione 1, tradotta dal metodo descritto dall'utente):\n  trend     EMA veloce sopra/sotto EMA lenta, EMA lenta in salita/discesa\n            e retta di trend sugli ultimi 3 minimi (rialzo) o massimi (ribasso) con la stessa pendenza\n  ingresso  ritracciamento sulla EMA veloce o sulla retta di trend\n            + candela d'inversione (engulfing o martello / stella cadente)\n            + RSI 14 NON in ipercomprato/ipervenduto (30-70)\n  uscita    stop oltre il minimo/massimo delle ultime 2 candele, obiettivo 2 volte il rischio,\n            altrimenti chiusura a fine seduta: niente posizioni la notte, quindi niente gap d'apertura\n  orari     niente ingressi nella prima mezz'ora e dopo le 15:00 (New York)\n  esecuzione segnale sulla chiusura della candela, ingresso all'apertura della successiva;\n            se nella stessa candela si toccano stop e obiettivo si conta lo stop (ipotesi prudente)",
+ "dati": {
+  "SPY": [
+   "2015-12-31 19:00:00",
+   "2026-11-23 19:00:00",
+   86090
+  ],
+  "QQQ": [
+   "2015-12-31 19:00:00",
+   "2026-11-23 19:00:00",
+   85416
+  ],
+  "IWM": [
+   "2015-12-31 19:00:00",
+   "2026-11-23 19:00:00",
+   83279
+  ],
+  "EFA": [
+   "2016-01-04 07:00:00",
+   "2026-11-23 16:00:00",
+   51727
+  ],
+  "EEM": [
+   "2016-01-04 05:00:00",
+   "2026-11-23 19:00:00",
+   66516
+  ],
+  "TLT": [
+   "2015-12-31 19:30:00",
+   "2026-11-23 19:00:00",
+   74049
+  ],
+  "IEF": [
+   "2016-01-04 09:30:00",
+   "2026-11-23 18:30:00",
+   51524
+  ],
+  "GLD": [
+   "2015-12-31 19:30:00",
+   "2026-11-23 19:00:00",
+   80408
+  ],
+  "DBC": [
+   "2016-01-04 09:30:00",
+   "2026-11-23 17:00:00",
+   44447
+  ],
+  "VNQ": [
+   "2016-01-04 09:00:00",
+   "2026-11-23 18:30:00",
+   48285
+  ]
+ },
+ "varianti": {
+  "30min_EMA9-21": {
+   "costi_0bps": {
+    "intero_periodo": {
+     "operazioni": 12226,
+     "operazioni_al_mese": 93.7,
+     "win_rate_%": 43.5,
+     "R_medio": 0.028,
+     "profit_factor": 1.09,
+     "rendimento_totale_%": 38.7,
+     "CAGR_%": 3.05,
+     "max_drawdown_%": -6.9,
+     "sharpe": 0.81,
+     "long_R_medio": 0.039,
+     "short_R_medio": 0.015,
+     "uscite": {
+      "fine seduta": 5528,
+      "stop": 4961,
+      "obiettivo": 1737
+     }
+    }
+   },
+   "costi_3bps": {
+    "intero_periodo": {
+     "operazioni": 12226,
+     "operazioni_al_mese": 93.7,
+     "win_rate_%": 36.6,
+     "R_medio": -0.335,
+     "profit_factor": 0.66,
+     "rendimento_totale_%": -77.4,
+     "CAGR_%": -12.77,
+     "max_drawdown_%": -77.6,
+     "sharpe": -3.57,
+     "long_R_medio": -0.327,
+     "short_R_medio": -0.344,
+     "uscite": {
+      "fine seduta": 5528,
+      "stop": 4961,
+      "obiettivo": 1737
+     }
+    },
+    "fino_al_2022": {
+     "operazioni": 8057,
+     "operazioni_al_mese": 96.2,
+     "win_rate_%": 36.2,
+     "R_medio": -0.352,
+     "profit_factor": 0.66,
+     "rendimento_totale_%": -63.0,
+     "CAGR_%": -13.29,
+     "max_drawdown_%": -64.1,
+     "sharpe": -3.41,
+     "long_R_medio": -0.362,
+     "short_R_medio": -0.341,
+     "uscite": {
+      "fine seduta": 3558,
+      "stop": 3313,
+      "obiettivo": 1186
+     }
+    },
+    "dal_2023_fuori_campione": {
+     "operazioni": 4161,
+     "operazioni_al_mese": 89.1,
+     "win_rate_%": 37.4,
+     "R_medio": -0.299,
+     "profit_factor": 0.67,
+     "rendimento_totale_%": -39.3,
+     "CAGR_%": -12.04,
+     "max_drawdown_%": -40.1,
+     "sharpe": -3.82,
+     "long_R_medio": -0.258,
+     "short_R_medio": -0.348,
+     "uscite": {
+      "fine seduta": 1966,
+      "stop": 1646,
+      "obiettivo": 549
+     }
+    },
+    "rendimenti_annui_%": {
+     "2016": -13.7,
+     "2017": -18.6,
+     "2018": -12.5,
+     "2019": -15.8,
+     "2020": -18.6,
+     "2021": -11.4,
+     "2022": -1.1,
+     "2023": -11.2,
+     "2024": -13.3,
+     "2025": -15.4,
+     "2026": -5.9
+    },
+    "per_ticker_R_medio": {
+     "DBC": -0.256,
+     "EEM": -0.341,
+     "EFA": -0.411,
+     "GLD": -0.351,
+     "IEF": -0.868,
+     "IWM": -0.192,
+     "QQQ": -0.189,
+     "SPY": -0.26,
+     "TLT": -0.272,
+     "VNQ": -0.135
+    }
+   },
+   "costi_6bps": {
+    "intero_periodo": {
+     "operazioni": 12054,
+     "operazioni_al_mese": 92.3,
+     "win_rate_%": 29.7,
+     "R_medio": -0.704,
+     "profit_factor": 0.4,
+     "rendimento_totale_%": -95.8,
+     "CAGR_%": -25.33,
+     "max_drawdown_%": -95.9,
+     "sharpe": -7.7,
+     "long_R_medio": -0.7,
+     "short_R_medio": -0.709,
+     "uscite": {
+      "fine seduta": 5440,
+      "stop": 4906,
+      "obiettivo": 1708
+     }
+    }
+   }
+  },
+  "30min_EMA20-50": {
+   "costi_0bps": {
+    "intero_periodo": {
+     "operazioni": 10367,
+     "operazioni_al_mese": 79.4,
+     "win_rate_%": 43.6,
+     "R_medio": 0.027,
+     "profit_factor": 1.07,
+     "rendimento_totale_%": 23.4,
+     "CAGR_%": 1.96,
+     "max_drawdown_%": -10.0,
+     "sharpe": 0.57,
+     "long_R_medio": 0.022,
+     "short_R_medio": 0.035,
+     "uscite": {
+      "fine seduta": 4693,
+      "stop": 4223,
+      "obiettivo": 1451
+     }
+    }
+   },
+   "costi_3bps": {
+    "intero_periodo": {
+     "operazioni": 10367,
+     "operazioni_al_mese": 79.4,
+     "win_rate_%": 36.7,
+     "R_medio": -0.334,
+     "profit_factor": 0.64,
+     "rendimento_totale_%": -73.5,
+     "CAGR_%": -11.48,
+     "max_drawdown_%": -73.8,
+     "sharpe": -3.47,
+     "long_R_medio": -0.344,
+     "short_R_medio": -0.319,
+     "uscite": {
+      "fine seduta": 4693,
+      "stop": 4223,
+      "obiettivo": 1451
+     }
+    },
+    "fino_al_2022": {
+     "operazioni": 6847,
+     "operazioni_al_mese": 81.8,
+     "win_rate_%": 35.8,
+     "R_medio": -0.371,
+     "profit_factor": 0.62,
+     "rendimento_totale_%": -62.3,
+     "CAGR_%": -13.04,
+     "max_drawdown_%": -62.6,
+     "sharpe": -3.73,
+     "long_R_medio": -0.396,
+     "short_R_medio": -0.337,
+     "uscite": {
+      "fine seduta": 3014,
+      "stop": 2870,
+      "obiettivo": 963
+     }
+    },
+    "dal_2023_fuori_campione": {
+     "operazioni": 3522,
+     "operazioni_al_mese": 75.4,
+     "win_rate_%": 38.2,
+     "R_medio": -0.263,
+     "profit_factor": 0.73,
+     "rendimento_totale_%": -30.0,
+     "CAGR_%": -8.77,
+     "max_drawdown_%": -31.7,
+     "sharpe": -2.87,
+     "long_R_medio": -0.244,
+     "short_R_medio": -0.287,
+     "uscite": {
+      "fine seduta": 1685,
+      "stop": 1352,
+      "obiettivo": 485
+     }
+    },
+    "rendimenti_annui_%": {
+     "2016": -13.5,
+     "2017": -15.5,
+     "2018": -13.1,
+     "2019": -13.2,
+     "2020": -19.5,
+     "2021": -8.9,
+     "2022": -6.7,
+     "2023": -5.9,
+     "2024": -12.0,
+     "2025": -9.4,
+     "2026": -6.2
+    },
+    "per_ticker_R_medio": {
+     "DBC": -0.24,
+     "EEM": -0.298,
+     "EFA": -0.364,
+     "GLD": -0.305,
+     "IEF": -0.869,
+     "IWM": -0.204,
+     "QQQ": -0.218,
+     "SPY": -0.318,
+     "TLT": -0.292,
+     "VNQ": -0.121
+    }
+   },
+   "costi_6bps": {
+    "intero_periodo": {
+     "operazioni": 10366,
+     "operazioni_al_mese": 79.4,
+     "win_rate_%": 30.0,
+     "R_medio": -0.695,
+     "profit_factor": 0.39,
+     "rendimento_totale_%": -93.9,
+     "CAGR_%": -22.69,
+     "max_drawdown_%": -94.0,
+     "sharpe": -7.27,
+     "long_R_medio": -0.71,
+     "short_R_medio": -0.674,
+     "uscite": {
+      "fine seduta": 4692,
+      "stop": 4223,
+      "obiettivo": 1451
+     }
+    }
+   }
+  },
+  "60min_EMA9-21": {
+   "costi_0bps": {
+    "intero_periodo": {
+     "operazioni": 5181,
+     "operazioni_al_mese": 39.8,
+     "win_rate_%": 45.9,
+     "R_medio": 0.002,
+     "profit_factor": 1.0,
+     "rendimento_totale_%": -0.7,
+     "CAGR_%": -0.06,
+     "max_drawdown_%": -5.6,
+     "sharpe": -0.01,
+     "long_R_medio": 0.006,
+     "short_R_medio": -0.003,
+     "uscite": {
+      "fine seduta": 3509,
+      "stop": 1348,
+      "obiettivo": 324
+     }
+    }
+   },
+   "costi_3bps": {
+    "intero_periodo": {
+     "operazioni": 5181,
+     "operazioni_al_mese": 39.8,
+     "win_rate_%": 37.5,
+     "R_medio": -0.243,
+     "profit_factor": 0.62,
+     "rendimento_totale_%": -53.9,
+     "CAGR_%": -6.9,
+     "max_drawdown_%": -54.0,
+     "sharpe": -2.65,
+     "long_R_medio": -0.248,
+     "short_R_medio": -0.237,
+     "uscite": {
+      "fine seduta": 3509,
+      "stop": 1348,
+      "obiettivo": 324
+     }
+    },
+    "fino_al_2022": {
+     "operazioni": 3406,
+     "operazioni_al_mese": 40.8,
+     "win_rate_%": 37.9,
+     "R_medio": -0.243,
+     "profit_factor": 0.63,
+     "rendimento_totale_%": -39.1,
+     "CAGR_%": -6.88,
+     "max_drawdown_%": -39.1,
+     "sharpe": -2.6,
+     "long_R_medio": -0.253,
+     "short_R_medio": -0.23,
+     "uscite": {
+      "fine seduta": 2307,
+      "stop": 881,
+      "obiettivo": 218
+     }
+    },
+    "dal_2023_fuori_campione": {
+     "operazioni": 1775,
+     "operazioni_al_mese": 38.0,
+     "win_rate_%": 36.7,
+     "R_medio": -0.244,
+     "profit_factor": 0.61,
+     "rendimento_totale_%": -24.8,
+     "CAGR_%": -7.05,
+     "max_drawdown_%": -25.1,
+     "sharpe": -2.85,
+     "long_R_medio": -0.239,
+     "short_R_medio": -0.249,
+     "uscite": {
+      "fine seduta": 1199,
+      "stop": 470,
+      "obiettivo": 106
+     }
+    },
+    "rendimenti_annui_%": {
+     "2016": -10.2,
+     "2017": -8.9,
+     "2018": -4.3,
+     "2019": -8.3,
+     "2020": -9.2,
+     "2021": -3.3,
+     "2022": -3.0,
+     "2023": -4.1,
+     "2024": -9.3,
+     "2025": -7.8,
+     "2026": -6.0
+    },
+    "per_ticker_R_medio": {
+     "DBC": -0.201,
+     "EEM": -0.183,
+     "EFA": -0.186,
+     "GLD": -0.234,
+     "IEF": -0.605,
+     "IWM": -0.158,
+     "QQQ": -0.185,
+     "SPY": -0.276,
+     "TLT": -0.194,
+     "VNQ": -0.161
+    }
+   },
+   "costi_6bps": {
+    "intero_periodo": {
+     "operazioni": 5181,
+     "operazioni_al_mese": 39.8,
+     "win_rate_%": 29.0,
+     "R_medio": -0.489,
+     "profit_factor": 0.39,
+     "rendimento_totale_%": -78.4,
+     "CAGR_%": -13.19,
+     "max_drawdown_%": -78.4,
+     "sharpe": -5.16,
+     "long_R_medio": -0.503,
+     "short_R_medio": -0.47,
+     "uscite": {
+      "fine seduta": 3509,
+      "stop": 1348,
+      "obiettivo": 324
+     }
+    }
+   }
+  },
+  "60min_EMA20-50": {
+   "costi_0bps": {
+    "intero_periodo": {
+     "operazioni": 4387,
+     "operazioni_al_mese": 33.7,
+     "win_rate_%": 46.4,
+     "R_medio": 0.009,
+     "profit_factor": 1.04,
+     "rendimento_totale_%": 5.1,
+     "CAGR_%": 0.46,
+     "max_drawdown_%": -4.6,
+     "sharpe": 0.19,
+     "long_R_medio": 0.018,
+     "short_R_medio": -0.004,
+     "uscite": {
+      "fine seduta": 2978,
+      "stop": 1146,
+      "obiettivo": 263
+     }
+    }
+   },
+   "costi_3bps": {
+    "intero_periodo": {
+     "operazioni": 4387,
+     "operazioni_al_mese": 33.7,
+     "win_rate_%": 38.0,
+     "R_medio": -0.238,
+     "profit_factor": 0.65,
+     "rendimento_totale_%": -45.3,
+     "CAGR_%": -5.41,
+     "max_drawdown_%": -45.3,
+     "sharpe": -2.18,
+     "long_R_medio": -0.233,
+     "short_R_medio": -0.244,
+     "uscite": {
+      "fine seduta": 2978,
+      "stop": 1146,
+      "obiettivo": 263
+     }
+    },
+    "fino_al_2022": {
+     "operazioni": 2863,
+     "operazioni_al_mese": 34.3,
+     "win_rate_%": 38.4,
+     "R_medio": -0.236,
+     "profit_factor": 0.66,
+     "rendimento_totale_%": -30.8,
+     "CAGR_%": -5.15,
+     "max_drawdown_%": -30.9,
+     "sharpe": -2.01,
+     "long_R_medio": -0.231,
+     "short_R_medio": -0.243,
+     "uscite": {
+      "fine seduta": 1947,
+      "stop": 745,
+      "obiettivo": 171
+     }
+    },
+    "dal_2023_fuori_campione": {
+     "operazioni": 1525,
+     "operazioni_al_mese": 32.7,
+     "win_rate_%": 37.3,
+     "R_medio": -0.242,
+     "profit_factor": 0.61,
+     "rendimento_totale_%": -21.0,
+     "CAGR_%": -5.88,
+     "max_drawdown_%": -21.0,
+     "sharpe": -2.45,
+     "long_R_medio": -0.236,
+     "short_R_medio": -0.25,
+     "uscite": {
+      "fine seduta": 1031,
+      "stop": 402,
+      "obiettivo": 92
+     }
+    },
+    "rendimenti_annui_%": {
+     "2016": -6.9,
+     "2017": -6.2,
+     "2018": -6.8,
+     "2019": -7.3,
+     "2020": -5.7,
+     "2021": -1.9,
+     "2022": -0.6,
+     "2023": -5.0,
+     "2024": -7.8,
+     "2025": -4.8,
+     "2026": -5.5
+    },
+    "per_ticker_R_medio": {
+     "DBC": -0.168,
+     "EEM": -0.161,
+     "EFA": -0.189,
+     "GLD": -0.201,
+     "IEF": -0.641,
+     "IWM": -0.151,
+     "QQQ": -0.222,
+     "SPY": -0.229,
+     "TLT": -0.198,
+     "VNQ": -0.137
+    }
+   },
+   "costi_6bps": {
+    "intero_periodo": {
+     "operazioni": 4387,
+     "operazioni_al_mese": 33.7,
+     "win_rate_%": 29.3,
+     "R_medio": -0.484,
+     "profit_factor": 0.41,
+     "rendimento_totale_%": -71.3,
+     "CAGR_%": -10.88,
+     "max_drawdown_%": -71.3,
+     "sharpe": -4.48,
+     "long_R_medio": -0.484,
+     "short_R_medio": -0.485,
+     "uscite": {
+      "fine seduta": 2978,
+      "stop": 1146,
+      "obiettivo": 263
+     }
+    }
+   }
+  }
+ }
+}

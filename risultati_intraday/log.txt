@@ -1,0 +1,14 @@
+SPY: 86090 candele (sip)
+QQQ: 85416 candele (sip)
+IWM: 83279 candele (sip)
+EFA: 51727 candele (sip)
+EEM: 66516 candele (sip)
+TLT: 74049 candele (sip)
+IEF: 51524 candele (sip)
+GLD: 80408 candele (sip)
+DBC: 44447 candele (sip)
+VNQ: 48285 candele (sip)
+30min_EMA9-21 {"operazioni": 12226, "operazioni_al_mese": 93.7, "win_rate_%": 36.6, "R_medio": -0.335, "profit_factor": 0.66, "rendimento_totale_%": -77.4, "CAGR_%": -12.77, "max_drawdown_%": -77.6, "sharpe": -3.57, "long_R_medio": -0.327, "short_R_medio": -0.344, "uscite": {"fine seduta": 5528, "stop": 4961, "obiettivo": 1737}}
+30min_EMA20-50 {"operazioni": 10367, "operazioni_al_mese": 79.4, "win_rate_%": 36.7, "R_medio": -0.334, "profit_factor": 0.64, "rendimento_totale_%": -73.5, "CAGR_%": -11.48, "max_drawdown_%": -73.8, "sharpe": -3.47, "long_R_medio": -0.344, "short_R_medio": -0.319, "uscite": {"fine seduta": 4693, "stop": 4223, "obiettivo": 1451}}
+60min_EMA9-21 {"operazioni": 5181, "operazioni_al_mese": 39.8, "win_rate_%": 37.5, "R_medio": -0.243, "profit_factor": 0.62, "rendimento_totale_%": -53.9, "CAGR_%": -6.9, "max_drawdown_%": -54.0, "sharpe": -2.65, "long_R_medio": -0.248, "short_R_medio": -0.237, "uscite": {"fine seduta": 3509, "stop": 1348, "obiettivo": 324}}
+60min_EMA20-50 {"operazioni": 4387, "operazioni_al_mese": 33.7, "win_rate_%": 38.0, "R_medio": -0.238, "profit_factor": 0.65, "rendimento_totale_%": -45.3, "CAGR_%": -5.41, "max_drawdown_%": -45.3, "sharpe": -2.18, "long_R_medio": -0.233, "short_R_medio": -0.244, "uscite": {"fine seduta": 2978, "stop": 1146, "obiettivo": 263}}
