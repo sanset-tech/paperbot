@@ -1,0 +1,186 @@
+{
+ "versione": "SPY+QQQ, 60 min, EMA 20/50, stop 1 ATR, obiettivo 2R, chiusura a fine seduta",
+ "criteri": "PF >= 1.2 con 1 bps sia fino al 2022 sia dal 2023, e CAGR > 0 con 3 bps sull'intero periodo",
+ "costi_0bps": {
+  "intero_periodo": {
+   "operazioni": 861,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 47.0,
+   "R_medio": -0.023,
+   "profit_factor": 0.97,
+   "rendimento_totale_%": -1.2,
+   "CAGR_%": -0.11,
+   "max_drawdown_%": -3.4,
+   "sharpe": -0.08,
+   "long_R_medio": -0.02,
+   "short_R_medio": -0.028,
+   "uscite": {
+    "fine seduta": 581,
+    "stop": 238,
+    "obiettivo": 42
+   }
+  },
+  "fino_al_2022": {
+   "operazioni": 546,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 49.1,
+   "R_medio": 0.004,
+   "profit_factor": 1.04,
+   "rendimento_totale_%": 0.8,
+   "CAGR_%": 0.12,
+   "max_drawdown_%": -2.4,
+   "sharpe": 0.1,
+   "long_R_medio": -0.012,
+   "short_R_medio": 0.04,
+   "uscite": {
+    "fine seduta": 382,
+    "stop": 137,
+    "obiettivo": 27
+   }
+  },
+  "dal_2023": {
+   "operazioni": 315,
+   "operazioni_al_mese": 6.8,
+   "win_rate_%": 43.5,
+   "R_medio": -0.069,
+   "profit_factor": 0.86,
+   "rendimento_totale_%": -2.0,
+   "CAGR_%": -0.52,
+   "max_drawdown_%": -3.1,
+   "sharpe": -0.41,
+   "long_R_medio": -0.035,
+   "short_R_medio": -0.139,
+   "uscite": {
+    "fine seduta": 199,
+    "stop": 101,
+    "obiettivo": 15
+   }
+  }
+ },
+ "costi_1bps": {
+  "intero_periodo": {
+   "operazioni": 861,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 44.6,
+   "R_medio": -0.078,
+   "profit_factor": 0.86,
+   "rendimento_totale_%": -5.3,
+   "CAGR_%": -0.5,
+   "max_drawdown_%": -5.8,
+   "sharpe": -0.4,
+   "long_R_medio": -0.082,
+   "short_R_medio": -0.067,
+   "uscite": {
+    "fine seduta": 581,
+    "stop": 238,
+    "obiettivo": 42
+   }
+  },
+  "fino_al_2022": {
+   "operazioni": 546,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 46.5,
+   "R_medio": -0.054,
+   "profit_factor": 0.92,
+   "rendimento_totale_%": -1.9,
+   "CAGR_%": -0.28,
+   "max_drawdown_%": -3.5,
+   "sharpe": -0.22,
+   "long_R_medio": -0.078,
+   "short_R_medio": 0.0,
+   "uscite": {
+    "fine seduta": 382,
+    "stop": 137,
+    "obiettivo": 27
+   }
+  },
+  "dal_2023": {
+   "operazioni": 315,
+   "operazioni_al_mese": 6.8,
+   "win_rate_%": 41.3,
+   "R_medio": -0.119,
+   "profit_factor": 0.77,
+   "rendimento_totale_%": -3.5,
+   "CAGR_%": -0.91,
+   "max_drawdown_%": -3.8,
+   "sharpe": -0.72,
+   "long_R_medio": -0.09,
+   "short_R_medio": -0.178,
+   "uscite": {
+    "fine seduta": 199,
+    "stop": 101,
+    "obiettivo": 15
+   }
+  }
+ },
+ "rendimenti_annui_1bps_%": {
+  "2016": -0.9,
+  "2017": -0.5,
+  "2018": -1.1,
+  "2019": -0.2,
+  "2020": 0.7,
+  "2021": -0.2,
+  "2022": 0.4,
+  "2023": -0.5,
+  "2024": -2.4,
+  "2025": -0.3,
+  "2026": -0.4
+ },
+ "costi_3bps": {
+  "intero_periodo": {
+   "operazioni": 861,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 40.1,
+   "R_medio": -0.187,
+   "profit_factor": 0.68,
+   "rendimento_totale_%": -13.0,
+   "CAGR_%": -1.27,
+   "max_drawdown_%": -13.1,
+   "sharpe": -1.02,
+   "long_R_medio": -0.207,
+   "short_R_medio": -0.146,
+   "uscite": {
+    "fine seduta": 581,
+    "stop": 238,
+    "obiettivo": 42
+   }
+  },
+  "fino_al_2022": {
+   "operazioni": 546,
+   "operazioni_al_mese": 6.6,
+   "win_rate_%": 41.6,
+   "R_medio": -0.169,
+   "profit_factor": 0.72,
+   "rendimento_totale_%": -7.1,
+   "CAGR_%": -1.05,
+   "max_drawdown_%": -7.5,
+   "sharpe": -0.86,
+   "long_R_medio": -0.21,
+   "short_R_medio": -0.079,
+   "uscite": {
+    "fine seduta": 382,
+    "stop": 137,
+    "obiettivo": 27
+   }
+  },
+  "dal_2023": {
+   "operazioni": 315,
+   "operazioni_al_mese": 6.8,
+   "win_rate_%": 37.5,
+   "R_medio": -0.219,
+   "profit_factor": 0.61,
+   "rendimento_totale_%": -6.4,
+   "CAGR_%": -1.71,
+   "max_drawdown_%": -6.4,
+   "sharpe": -1.35,
+   "long_R_medio": -0.201,
+   "short_R_medio": -0.255,
+   "uscite": {
+    "fine seduta": 199,
+    "stop": 101,
+    "obiettivo": 15
+   }
+  }
+ },
+ "promosso": false
+}
