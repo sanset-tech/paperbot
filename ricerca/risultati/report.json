@@ -1,0 +1,935 @@
+{
+ "note": "Ricerca strategie alternative (solo backtest, separato dal bot).\n\nNon modifica nulla del bot: legge solo i dati giornalieri pubblici (Yahoo) con le stesse funzioni di pulizia\ndel bot (bot.data.clean) e il risultato del backtest del bot (prodotto da run_backtest.py, invariato).\nNessuna chiave, nessun ordine.\n\nConvenzioni (niente sguardo al futuro):\n  - i pesi decisi sulla chiusura del giorno t vengono eseguiti all'APERTURA di t+1;\n  - giorno t+1: rendimento apertura->chiusura con i pesi nuovi; il gap notturno (chiusura t -> apertura t+1)\n    appartiene ancora ai pesi vecchi;\n  - costi su ogni variazione di peso (commissione + slippage, come config.json del bot: 0,10% + 0,05% per lato);\n  - la liquidit\u00e0 non investita matura il tasso dei T-bill (^IRX), come nel bot.\nSemplificazione dichiarata: pesi costanti tra un ribilanciamento e l'altro (ribilanciamento implicito gratuito\nfra un'operazione e l'altra). Pesa poco sulle strategie a bassa rotazione; \u00e8 segnalata nel report.\n\nPeriodi:  sviluppo 2006-2015 | validazione 2016-2020 | test finale 2021-oggi.",
+ "strategie": {
+  "A_trend": {
+   "parametro_base": 252,
+   "periodi": {
+    "sviluppo_2006_2015": {
+     "rendimento_netto_%": 46.2,
+     "CAGR_%": 3.87,
+     "volatilita_%": 6.2,
+     "sharpe": 0.64,
+     "sortino": 0.78,
+     "max_drawdown_%": -6.7,
+     "calmar": 0.58,
+     "operazioni": 263,
+     "win_rate_%": 41.4,
+     "profit_factor": 1.95,
+     "EV_per_operazione_%capitale": 0.134,
+     "esposizione_media_%": 48.1,
+     "esposizione_max_%": 100.0,
+     "costi_totali_%capitale": 7.55,
+     "giorni_medi_in_posizione": 47.8
+    },
+    "validazione_2016_2020": {
+     "rendimento_netto_%": 15.6,
+     "CAGR_%": 2.94,
+     "volatilita_%": 5.1,
+     "sharpe": 0.6,
+     "sortino": 0.65,
+     "max_drawdown_%": -8.2,
+     "calmar": 0.36,
+     "operazioni": 129,
+     "win_rate_%": 38.8,
+     "profit_factor": 1.72,
+     "EV_per_operazione_%capitale": 0.096,
+     "esposizione_media_%": 49.4,
+     "esposizione_max_%": 90.0,
+     "costi_totali_%capitale": 3.7,
+     "giorni_medi_in_posizione": 49.4
+    },
+    "test_finale_2021_oggi": {
+     "rendimento_netto_%": 42.0,
+     "CAGR_%": 6.14,
+     "volatilita_%": 6.2,
+     "sharpe": 1.0,
+     "sortino": 1.21,
+     "max_drawdown_%": -5.3,
+     "calmar": 1.16,
+     "operazioni": 127,
+     "win_rate_%": 40.9,
+     "profit_factor": 2.16,
+     "EV_per_operazione_%capitale": 0.204,
+     "esposizione_media_%": 46.6,
+     "esposizione_max_%": 99.3,
+     "costi_totali_%capitale": 3.75,
+     "giorni_medi_in_posizione": 56.4
+    }
+   },
+   "intero_2006_oggi": {
+    "rendimento_netto_%": 139.9,
+    "CAGR_%": 4.28,
+    "volatilita_%": 6.0,
+    "sharpe": 0.73,
+    "sortino": 0.87,
+    "max_drawdown_%": -8.2,
+    "calmar": 0.52,
+    "operazioni": 512,
+    "win_rate_%": 40.0,
+    "profit_factor": 1.96,
+    "EV_per_operazione_%capitale": 0.144,
+    "esposizione_media_%": 48.0,
+    "esposizione_max_%": 100.0,
+    "costi_totali_%capitale": 15.0,
+    "giorni_medi_in_posizione": 51.0
+   },
+   "robustezza_sharpe_per_parametro": {
+    "189": {
+     "sviluppo_2006_2015": 0.74,
+     "validazione_2016_2020": 0.63,
+     "test_finale_2021_oggi": 0.91
+    },
+    "252": {
+     "sviluppo_2006_2015": 0.64,
+     "validazione_2016_2020": 0.6,
+     "test_finale_2021_oggi": 1.0
+    },
+    "315": {
+     "sviluppo_2006_2015": 0.6,
+     "validazione_2016_2020": 0.56,
+     "test_finale_2021_oggi": 0.97
+    }
+   },
+   "walk_forward_2011_oggi": {
+    "rendimento_netto_%": 84.6,
+    "CAGR_%": 3.94,
+    "volatilita_%": 5.6,
+    "sharpe": 0.72,
+    "sortino": 0.87,
+    "max_drawdown_%": -8.2,
+    "calmar": 0.48
+   },
+   "walk_forward_parametri_scelti": {
+    "2011": "189",
+    "2012": "189",
+    "2013": "189",
+    "2014": "189",
+    "2015": "252",
+    "2016": "189",
+    "2017": "189",
+    "2018": "189",
+    "2019": "189",
+    "2020": "189",
+    "2021": "189",
+    "2022": "189",
+    "2023": "189",
+    "2024": "252",
+    "2025": "252",
+    "2026": "252"
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 2.4,
+    "CAGR_%_mediana": 4.3,
+    "CAGR_%_p95": 6.2,
+    "maxDD_%_p5_peggiore": -18.8,
+    "maxDD_%_mediana": -11.8,
+    "prob_CAGR_negativo_%": 0.0
+   }
+  },
+  "B_mean_reversion": {
+   "parametro_base": 10,
+   "periodi": {
+    "sviluppo_2006_2015": {
+     "rendimento_netto_%": 21.0,
+     "CAGR_%": 1.93,
+     "volatilita_%": 5.6,
+     "sharpe": 0.37,
+     "sortino": 0.27,
+     "max_drawdown_%": -13.6,
+     "calmar": 0.14,
+     "operazioni": 447,
+     "win_rate_%": 63.1,
+     "profit_factor": 1.22,
+     "EV_per_operazione_%capitale": 0.025,
+     "esposizione_media_%": 11.0,
+     "esposizione_max_%": 100.0,
+     "costi_totali_%capitale": 22.32,
+     "giorni_medi_in_posizione": 3.7
+    },
+    "validazione_2016_2020": {
+     "rendimento_netto_%": -2.8,
+     "CAGR_%": -0.57,
+     "volatilita_%": 5.1,
+     "sharpe": -0.09,
+     "sortino": -0.06,
+     "max_drawdown_%": -11.4,
+     "calmar": -0.05,
+     "operazioni": 204,
+     "win_rate_%": 57.8,
+     "profit_factor": 0.72,
+     "EV_per_operazione_%capitale": -0.035,
+     "esposizione_media_%": 10.8,
+     "esposizione_max_%": 100.0,
+     "costi_totali_%capitale": 10.18,
+     "giorni_medi_in_posizione": 4.0
+    },
+    "test_finale_2021_oggi": {
+     "rendimento_netto_%": 24.7,
+     "CAGR_%": 3.83,
+     "volatilita_%": 4.1,
+     "sharpe": 0.93,
+     "sortino": 0.84,
+     "max_drawdown_%": -5.2,
+     "calmar": 0.73,
+     "operazioni": 289,
+     "win_rate_%": 64.4,
+     "profit_factor": 1.2,
+     "EV_per_operazione_%capitale": 0.019,
+     "esposizione_media_%": 11.3,
+     "esposizione_max_%": 100.0,
+     "costi_totali_%capitale": 14.43,
+     "giorni_medi_in_posizione": 3.5
+    }
+   },
+   "intero_2006_oggi": {
+    "rendimento_netto_%": 46.7,
+    "CAGR_%": 1.85,
+    "volatilita_%": 5.1,
+    "sharpe": 0.39,
+    "sortino": 0.28,
+    "max_drawdown_%": -16.9,
+    "calmar": 0.11,
+    "operazioni": 939,
+    "win_rate_%": 62.3,
+    "profit_factor": 1.09,
+    "EV_per_operazione_%capitale": 0.01,
+    "esposizione_media_%": 11.0,
+    "esposizione_max_%": 100.0,
+    "costi_totali_%capitale": 46.92,
+    "giorni_medi_in_posizione": 3.7
+   },
+   "robustezza_sharpe_per_parametro": {
+    "5": {
+     "sviluppo_2006_2015": 0.29,
+     "validazione_2016_2020": 0.2,
+     "test_finale_2021_oggi": 1.55
+    },
+    "10": {
+     "sviluppo_2006_2015": 0.37,
+     "validazione_2016_2020": -0.09,
+     "test_finale_2021_oggi": 0.93
+    },
+    "15": {
+     "sviluppo_2006_2015": 0.23,
+     "validazione_2016_2020": 0.13,
+     "test_finale_2021_oggi": 0.59
+    }
+   },
+   "walk_forward_2011_oggi": {
+    "rendimento_netto_%": 29.2,
+    "CAGR_%": 1.63,
+    "volatilita_%": 4.2,
+    "sharpe": 0.41,
+    "sortino": 0.26,
+    "max_drawdown_%": -12.3,
+    "calmar": 0.13
+   },
+   "walk_forward_parametri_scelti": {
+    "2011": "5",
+    "2012": "10",
+    "2013": "10",
+    "2014": "10",
+    "2015": "10",
+    "2016": "10",
+    "2017": "15",
+    "2018": "5",
+    "2019": "5",
+    "2020": "5",
+    "2021": "5",
+    "2022": "5",
+    "2023": "5",
+    "2024": "5",
+    "2025": "5",
+    "2026": "5"
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 0.2,
+    "CAGR_%_mediana": 1.9,
+    "CAGR_%_p95": 3.3,
+    "maxDD_%_p5_peggiore": -24.0,
+    "maxDD_%_mediana": -13.3,
+    "prob_CAGR_negativo_%": 3.4
+   }
+  },
+  "C_breakout": {
+   "parametro_base": 55,
+   "periodi": {
+    "sviluppo_2006_2015": {
+     "rendimento_netto_%": 18.2,
+     "CAGR_%": 1.68,
+     "volatilita_%": 5.3,
+     "sharpe": 0.34,
+     "sortino": 0.38,
+     "max_drawdown_%": -13.0,
+     "calmar": 0.13,
+     "operazioni": 239,
+     "win_rate_%": 42.3,
+     "profit_factor": 1.24,
+     "EV_per_operazione_%capitale": 0.052,
+     "esposizione_media_%": 38.5,
+     "esposizione_max_%": 142.1,
+     "costi_totali_%capitale": 9.76,
+     "giorni_medi_in_posizione": 30.7
+    },
+    "validazione_2016_2020": {
+     "rendimento_netto_%": 26.4,
+     "CAGR_%": 4.8,
+     "volatilita_%": 5.0,
+     "sharpe": 0.96,
+     "sortino": 1.1,
+     "max_drawdown_%": -4.8,
+     "calmar": 1.0,
+     "operazioni": 130,
+     "win_rate_%": 50.8,
+     "profit_factor": 2.03,
+     "EV_per_operazione_%capitale": 0.164,
+     "esposizione_media_%": 49.0,
+     "esposizione_max_%": 148.9,
+     "costi_totali_%capitale": 5.95,
+     "giorni_medi_in_posizione": 31.2
+    },
+    "test_finale_2021_oggi": {
+     "rendimento_netto_%": 20.7,
+     "CAGR_%": 3.25,
+     "volatilita_%": 5.1,
+     "sharpe": 0.66,
+     "sortino": 0.71,
+     "max_drawdown_%": -5.4,
+     "calmar": 0.6,
+     "operazioni": 148,
+     "win_rate_%": 48.0,
+     "profit_factor": 1.24,
+     "EV_per_operazione_%capitale": 0.052,
+     "esposizione_media_%": 36.6,
+     "esposizione_max_%": 126.6,
+     "costi_totali_%capitale": 6.13,
+     "giorni_medi_in_posizione": 26.8
+    }
+   },
+   "intero_2006_oggi": {
+    "rendimento_netto_%": 80.3,
+    "CAGR_%": 2.86,
+    "volatilita_%": 5.2,
+    "sharpe": 0.57,
+    "sortino": 0.64,
+    "max_drawdown_%": -14.1,
+    "calmar": 0.2,
+    "operazioni": 512,
+    "win_rate_%": 45.7,
+    "profit_factor": 1.4,
+    "EV_per_operazione_%capitale": 0.081,
+    "esposizione_media_%": 40.5,
+    "esposizione_max_%": 148.9,
+    "costi_totali_%capitale": 21.84,
+    "giorni_medi_in_posizione": 30.0
+   },
+   "robustezza_sharpe_per_parametro": {
+    "40": {
+     "sviluppo_2006_2015": 0.38,
+     "validazione_2016_2020": 1.02,
+     "test_finale_2021_oggi": 0.64
+    },
+    "55": {
+     "sviluppo_2006_2015": 0.34,
+     "validazione_2016_2020": 0.96,
+     "test_finale_2021_oggi": 0.66
+    },
+    "70": {
+     "sviluppo_2006_2015": 0.36,
+     "validazione_2016_2020": 0.8,
+     "test_finale_2021_oggi": 0.8
+    }
+   },
+   "walk_forward_2011_oggi": {
+    "rendimento_netto_%": 40.9,
+    "CAGR_%": 2.18,
+    "volatilita_%": 5.0,
+    "sharpe": 0.46,
+    "sortino": 0.52,
+    "max_drawdown_%": -15.9,
+    "calmar": 0.14
+   },
+   "walk_forward_parametri_scelti": {
+    "2011": "70",
+    "2012": "70",
+    "2013": "40",
+    "2014": "70",
+    "2015": "40",
+    "2016": "40",
+    "2017": "40",
+    "2018": "40",
+    "2019": "40",
+    "2020": "55",
+    "2021": "40",
+    "2022": "40",
+    "2023": "70",
+    "2024": "40",
+    "2025": "40",
+    "2026": "70"
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 1.1,
+    "CAGR_%_mediana": 2.8,
+    "CAGR_%_p95": 4.5,
+    "maxDD_%_p5_peggiore": -18.1,
+    "maxDD_%_mediana": -11.3,
+    "prob_CAGR_negativo_%": 0.2
+   }
+  },
+  "D_volatilita": {
+   "parametro_base": 0.1,
+   "periodi": {
+    "sviluppo_2006_2015": {
+     "rendimento_netto_%": 55.5,
+     "CAGR_%": 4.52,
+     "volatilita_%": 8.4,
+     "sharpe": 0.57,
+     "sortino": 0.7,
+     "max_drawdown_%": -12.9,
+     "calmar": 0.35,
+     "operazioni": 109,
+     "win_rate_%": 55.0,
+     "profit_factor": 2.31,
+     "EV_per_operazione_%capitale": 0.396,
+     "esposizione_media_%": 62.5,
+     "esposizione_max_%": 97.0,
+     "costi_totali_%capitale": 11.23,
+     "giorni_medi_in_posizione": 107.3
+    },
+    "validazione_2016_2020": {
+     "rendimento_netto_%": 34.1,
+     "CAGR_%": 6.05,
+     "volatilita_%": 6.8,
+     "sharpe": 0.89,
+     "sortino": 0.99,
+     "max_drawdown_%": -9.1,
+     "calmar": 0.67,
+     "operazioni": 59,
+     "win_rate_%": 54.2,
+     "profit_factor": 3.59,
+     "EV_per_operazione_%capitale": 0.488,
+     "esposizione_media_%": 63.1,
+     "esposizione_max_%": 94.8,
+     "costi_totali_%capitale": 4.97,
+     "giorni_medi_in_posizione": 100.8
+    },
+    "test_finale_2021_oggi": {
+     "rendimento_netto_%": 47.0,
+     "CAGR_%": 6.77,
+     "volatilita_%": 8.9,
+     "sharpe": 0.78,
+     "sortino": 1.0,
+     "max_drawdown_%": -10.3,
+     "calmar": 0.66,
+     "operazioni": 63,
+     "win_rate_%": 50.8,
+     "profit_factor": 2.56,
+     "EV_per_operazione_%capitale": 0.555,
+     "esposizione_media_%": 66.4,
+     "esposizione_max_%": 95.5,
+     "costi_totali_%capitale": 6.37,
+     "giorni_medi_in_posizione": 101.8
+    }
+   },
+   "intero_2006_oggi": {
+    "rendimento_netto_%": 206.5,
+    "CAGR_%": 5.52,
+    "volatilita_%": 8.2,
+    "sharpe": 0.69,
+    "sortino": 0.84,
+    "max_drawdown_%": -15.3,
+    "calmar": 0.36,
+    "operazioni": 221,
+    "win_rate_%": 53.4,
+    "profit_factor": 2.61,
+    "EV_per_operazione_%capitale": 0.484,
+    "esposizione_media_%": 63.8,
+    "esposizione_max_%": 97.0,
+    "costi_totali_%capitale": 22.56,
+    "giorni_medi_in_posizione": 108.9
+   },
+   "robustezza_sharpe_per_parametro": {
+    "0.08": {
+     "sviluppo_2006_2015": 0.52,
+     "validazione_2016_2020": 0.78,
+     "test_finale_2021_oggi": 0.82
+    },
+    "0.1": {
+     "sviluppo_2006_2015": 0.57,
+     "validazione_2016_2020": 0.89,
+     "test_finale_2021_oggi": 0.78
+    },
+    "0.12": {
+     "sviluppo_2006_2015": 0.56,
+     "validazione_2016_2020": 0.85,
+     "test_finale_2021_oggi": 0.74
+    }
+   },
+   "walk_forward_2011_oggi": {
+    "rendimento_netto_%": 94.1,
+    "CAGR_%": 4.27,
+    "volatilita_%": 7.7,
+    "sharpe": 0.58,
+    "sortino": 0.7,
+    "max_drawdown_%": -15.3,
+    "calmar": 0.28
+   },
+   "walk_forward_parametri_scelti": {
+    "2011": "0.08",
+    "2012": "0.1",
+    "2013": "0.08",
+    "2014": "0.1",
+    "2015": "0.1",
+    "2016": "0.1",
+    "2017": "0.12",
+    "2018": "0.12",
+    "2019": "0.1",
+    "2020": "0.1",
+    "2021": "0.1",
+    "2022": "0.1",
+    "2023": "0.08",
+    "2024": "0.08",
+    "2025": "0.08",
+    "2026": "0.08"
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 2.7,
+    "CAGR_%_mediana": 5.6,
+    "CAGR_%_p95": 8.2,
+    "maxDD_%_p5_peggiore": -27.0,
+    "maxDD_%_mediana": -17.0,
+    "prob_CAGR_negativo_%": 0.0
+   }
+  },
+  "E_multi": {
+   "periodi": {
+    "sviluppo_2006_2015": {
+     "rendimento_netto_%": 22.5,
+     "CAGR_%": 2.05,
+     "volatilita_%": 4.1,
+     "sharpe": 0.51,
+     "sortino": 0.57,
+     "max_drawdown_%": -4.9,
+     "calmar": 0.42
+    },
+    "validazione_2016_2020": {
+     "rendimento_netto_%": 10.6,
+     "CAGR_%": 2.04,
+     "volatilita_%": 4.0,
+     "sharpe": 0.52,
+     "sortino": 0.52,
+     "max_drawdown_%": -4.9,
+     "calmar": 0.42
+    },
+    "test_finale_2021_oggi": {
+     "rendimento_netto_%": 24.2,
+     "CAGR_%": 3.76,
+     "volatilita_%": 4.0,
+     "sharpe": 0.95,
+     "sortino": 1.15,
+     "max_drawdown_%": -6.0,
+     "calmar": 0.63
+    }
+   },
+   "intero_2006_oggi": {
+    "rendimento_netto_%": 68.4,
+    "CAGR_%": 2.53,
+    "volatilita_%": 4.1,
+    "sharpe": 0.63,
+    "sortino": 0.7,
+    "max_drawdown_%": -6.0,
+    "calmar": 0.42
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 1.3,
+    "CAGR_%_mediana": 2.5,
+    "CAGR_%_p95": 3.7,
+    "maxDD_%_p5_peggiore": -13.1,
+    "maxDD_%_mediana": -8.0,
+    "prob_CAGR_negativo_%": 0.1
+   },
+   "nota": "metriche per operazione non calcolate: combina le serie di A, B, C (gi\u00e0 al netto dei costi)"
+  }
+ },
+ "riferimenti": {
+  "replica_rotazione_bot": {
+   "sviluppo_2006_2015": {
+    "rendimento_netto_%": 118.5,
+    "CAGR_%": 8.14,
+    "volatilita_%": 11.5,
+    "sharpe": 0.74,
+    "sortino": 0.96,
+    "max_drawdown_%": -14.3,
+    "calmar": 0.57,
+    "operazioni": 109,
+    "win_rate_%": 53.2,
+    "profit_factor": 3.44,
+    "EV_per_operazione_%capitale": 0.762,
+    "esposizione_media_%": 80.8,
+    "esposizione_max_%": 97.0,
+    "costi_totali_%capitale": 6.41,
+    "giorni_medi_in_posizione": 107.3
+   },
+   "validazione_2016_2020": {
+    "rendimento_netto_%": 50.3,
+    "CAGR_%": 8.49,
+    "volatilita_%": 9.3,
+    "sharpe": 0.92,
+    "sortino": 1.07,
+    "max_drawdown_%": -10.8,
+    "calmar": 0.78,
+    "operazioni": 59,
+    "win_rate_%": 57.6,
+    "profit_factor": 3.58,
+    "EV_per_operazione_%capitale": 0.709,
+    "esposizione_media_%": 81.4,
+    "esposizione_max_%": 94.8,
+    "costi_totali_%capitale": 3.17,
+    "giorni_medi_in_posizione": 100.8
+   },
+   "test_finale_2021_oggi": {
+    "rendimento_netto_%": 65.6,
+    "CAGR_%": 8.96,
+    "volatilita_%": 10.9,
+    "sharpe": 0.84,
+    "sortino": 1.11,
+    "max_drawdown_%": -12.0,
+    "calmar": 0.75,
+    "operazioni": 63,
+    "win_rate_%": 54.0,
+    "profit_factor": 3.05,
+    "EV_per_operazione_%capitale": 0.794,
+    "esposizione_media_%": 78.4,
+    "esposizione_max_%": 95.5,
+    "costi_totali_%capitale": 3.53,
+    "giorni_medi_in_posizione": 101.8
+   }
+  },
+  "passivo_pesi_uguali_10_ETF": {
+   "sviluppo_2006_2015": {
+    "rendimento_netto_%": 96.0,
+    "CAGR_%": 6.97,
+    "volatilita_%": 15.7,
+    "sharpe": 0.51,
+    "sortino": 0.66,
+    "max_drawdown_%": -39.2,
+    "calmar": 0.18
+   },
+   "validazione_2016_2020": {
+    "rendimento_netto_%": 71.6,
+    "CAGR_%": 11.41,
+    "volatilita_%": 12.0,
+    "sharpe": 0.96,
+    "sortino": 1.04,
+    "max_drawdown_%": -23.1,
+    "calmar": 0.49
+   },
+   "test_finale_2021_oggi": {
+    "rendimento_netto_%": 53.9,
+    "CAGR_%": 7.61,
+    "volatilita_%": 11.9,
+    "sharpe": 0.68,
+    "sortino": 0.97,
+    "max_drawdown_%": -22.0,
+    "calmar": 0.35
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 3.7,
+    "CAGR_%_mediana": 8.2,
+    "CAGR_%_p95": 13.1,
+    "maxDD_%_p5_peggiore": -47.6,
+    "maxDD_%_mediana": -30.5,
+    "prob_CAGR_negativo_%": 0.2
+   }
+  },
+  "passivo_SPY": {
+   "sviluppo_2006_2015": {
+    "rendimento_netto_%": 101.0,
+    "CAGR_%": 7.24,
+    "volatilita_%": 20.7,
+    "sharpe": 0.44,
+    "sortino": 0.55,
+    "max_drawdown_%": -55.2,
+    "calmar": 0.13
+   },
+   "validazione_2016_2020": {
+    "rendimento_netto_%": 102.0,
+    "CAGR_%": 15.11,
+    "volatilita_%": 18.9,
+    "sharpe": 0.84,
+    "sortino": 0.92,
+    "max_drawdown_%": -33.7,
+    "calmar": 0.45
+   },
+   "test_finale_2021_oggi": {
+    "rendimento_netto_%": 107.0,
+    "CAGR_%": 13.17,
+    "volatilita_%": 16.9,
+    "sharpe": 0.82,
+    "sortino": 1.12,
+    "max_drawdown_%": -24.5,
+    "calmar": 0.54
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 4.5,
+    "CAGR_%_mediana": 11.0,
+    "CAGR_%_p95": 17.6,
+    "maxDD_%_p5_peggiore": -58.6,
+    "maxDD_%_mediana": -39.0,
+    "prob_CAGR_negativo_%": 0.1
+   }
+  },
+  "BOT_reale": {
+   "sviluppo_2006_2015": {
+    "rendimento_netto_%": 114.3,
+    "CAGR_%": 7.95,
+    "volatilita_%": 11.4,
+    "sharpe": 0.73,
+    "sortino": 0.95,
+    "max_drawdown_%": -14.3,
+    "calmar": 0.56
+   },
+   "validazione_2016_2020": {
+    "rendimento_netto_%": 50.5,
+    "CAGR_%": 8.53,
+    "volatilita_%": 9.2,
+    "sharpe": 0.93,
+    "sortino": 1.1,
+    "max_drawdown_%": -11.2,
+    "calmar": 0.76
+   },
+   "test_finale_2021_oggi": {
+    "rendimento_netto_%": 64.2,
+    "CAGR_%": 8.79,
+    "volatilita_%": 10.9,
+    "sharpe": 0.83,
+    "sortino": 1.09,
+    "max_drawdown_%": -12.0,
+    "calmar": 0.73
+   },
+   "monte_carlo": {
+    "CAGR_%_p5": 4.9,
+    "CAGR_%_mediana": 8.5,
+    "CAGR_%_p95": 12.3,
+    "maxDD_%_p5_peggiore": -30.3,
+    "maxDD_%_mediana": -19.7,
+    "prob_CAGR_negativo_%": 0.0
+   }
+  },
+  "correlazione_replica_vs_bot": 0.999
+ },
+ "correlazioni": {
+  "A_trend": {
+   "A_trend": 1.0,
+   "B_mean_reversion": 0.44,
+   "C_breakout": 0.68,
+   "D_volatilita": 0.84,
+   "E_multi": 0.83,
+   "replica_rotazione": 0.84,
+   "BOT_reale": 0.85
+  },
+  "B_mean_reversion": {
+   "A_trend": 0.44,
+   "B_mean_reversion": 1.0,
+   "C_breakout": 0.15,
+   "D_volatilita": 0.46,
+   "E_multi": 0.55,
+   "replica_rotazione": 0.52,
+   "BOT_reale": 0.51
+  },
+  "C_breakout": {
+   "A_trend": 0.68,
+   "B_mean_reversion": 0.15,
+   "C_breakout": 1.0,
+   "D_volatilita": 0.65,
+   "E_multi": 0.7,
+   "replica_rotazione": 0.56,
+   "BOT_reale": 0.57
+  },
+  "D_volatilita": {
+   "A_trend": 0.84,
+   "B_mean_reversion": 0.46,
+   "C_breakout": 0.65,
+   "D_volatilita": 1.0,
+   "E_multi": 0.75,
+   "replica_rotazione": 0.93,
+   "BOT_reale": 0.93
+  },
+  "E_multi": {
+   "A_trend": 0.83,
+   "B_mean_reversion": 0.55,
+   "C_breakout": 0.7,
+   "D_volatilita": 0.75,
+   "E_multi": 1.0,
+   "replica_rotazione": 0.73,
+   "BOT_reale": 0.74
+  },
+  "replica_rotazione": {
+   "A_trend": 0.84,
+   "B_mean_reversion": 0.52,
+   "C_breakout": 0.56,
+   "D_volatilita": 0.93,
+   "E_multi": 0.73,
+   "replica_rotazione": 1.0,
+   "BOT_reale": 1.0
+  },
+  "BOT_reale": {
+   "A_trend": 0.85,
+   "B_mean_reversion": 0.51,
+   "C_breakout": 0.57,
+   "D_volatilita": 0.93,
+   "E_multi": 0.74,
+   "replica_rotazione": 1.0,
+   "BOT_reale": 1.0
+  }
+ },
+ "combinazione_70_bot_30_strategia": {
+  "A_trend": {
+   "sviluppo_2006_2015": 0.73,
+   "validazione_2016_2020": 0.89,
+   "test_finale_2021_oggi": 0.88
+  },
+  "B_mean_reversion": {
+   "sviluppo_2006_2015": 0.72,
+   "validazione_2016_2020": 0.8,
+   "test_finale_2021_oggi": 0.89
+  },
+  "C_breakout": {
+   "sviluppo_2006_2015": 0.7,
+   "validazione_2016_2020": 1.02,
+   "test_finale_2021_oggi": 0.84
+  },
+  "D_volatilita": {
+   "sviluppo_2006_2015": 0.69,
+   "validazione_2016_2020": 0.94,
+   "test_finale_2021_oggi": 0.82
+  },
+  "E_multi": {
+   "sviluppo_2006_2015": 0.72,
+   "validazione_2016_2020": 0.91,
+   "test_finale_2021_oggi": 0.86
+  },
+  "solo_bot": {
+   "sviluppo_2006_2015": 0.73,
+   "validazione_2016_2020": 0.93,
+   "test_finale_2021_oggi": 0.83
+  }
+ },
+ "criteri": {
+  "A_trend": {
+   "sharpe_>=0.5_in_tutti_i_periodi": true,
+   "profit_factor_>=1.2_in_tutti_i_periodi": true,
+   "drawdown_entro_-20%": true,
+   "walk_forward_sharpe_>=0.5": true,
+   "robusta_ai_parametri": true,
+   "aggiunge_valore_al_bot_nel_test_finale": true,
+   "SUPERA": true
+  },
+  "B_mean_reversion": {
+   "sharpe_>=0.5_in_tutti_i_periodi": false,
+   "profit_factor_>=1.2_in_tutti_i_periodi": false,
+   "drawdown_entro_-20%": true,
+   "walk_forward_sharpe_>=0.5": false,
+   "robusta_ai_parametri": false,
+   "aggiunge_valore_al_bot_nel_test_finale": true,
+   "SUPERA": false
+  },
+  "C_breakout": {
+   "sharpe_>=0.5_in_tutti_i_periodi": false,
+   "profit_factor_>=1.2_in_tutti_i_periodi": true,
+   "drawdown_entro_-20%": true,
+   "walk_forward_sharpe_>=0.5": false,
+   "robusta_ai_parametri": true,
+   "aggiunge_valore_al_bot_nel_test_finale": true,
+   "SUPERA": false
+  },
+  "D_volatilita": {
+   "sharpe_>=0.5_in_tutti_i_periodi": true,
+   "profit_factor_>=1.2_in_tutti_i_periodi": true,
+   "drawdown_entro_-20%": true,
+   "walk_forward_sharpe_>=0.5": true,
+   "robusta_ai_parametri": true,
+   "aggiunge_valore_al_bot_nel_test_finale": false,
+   "SUPERA": false
+  },
+  "E_multi": {
+   "sharpe_>=0.5_in_tutti_i_periodi": true,
+   "profit_factor_>=1.2_in_tutti_i_periodi": true,
+   "drawdown_entro_-20%": true,
+   "walk_forward_sharpe_>=0.5": true,
+   "robusta_ai_parametri": true,
+   "aggiunge_valore_al_bot_nel_test_finale": true,
+   "SUPERA": true
+  }
+ },
+ "sensibilita_costi_0.03%_per_lato": {
+  "A_trend": {
+   "sviluppo_2006_2015": {
+    "sharpe": 0.74,
+    "CAGR_%": 4.5,
+    "profit_factor": 2.23
+   },
+   "validazione_2016_2020": {
+    "sharpe": 0.71,
+    "CAGR_%": 3.55,
+    "profit_factor": 1.98
+   },
+   "test_finale_2021_oggi": {
+    "sharpe": 1.08,
+    "CAGR_%": 6.69,
+    "profit_factor": 2.4
+   }
+  },
+  "B_mean_reversion": {
+   "sviluppo_2006_2015": {
+    "sharpe": 0.69,
+    "CAGR_%": 3.77,
+    "profit_factor": 1.67
+   },
+   "validazione_2016_2020": {
+    "sharpe": 0.23,
+    "CAGR_%": 1.06,
+    "profit_factor": 1.05
+   },
+   "test_finale_2021_oggi": {
+    "sharpe": 1.41,
+    "CAGR_%": 5.89,
+    "profit_factor": 1.71
+   }
+  },
+  "C_breakout": {
+   "sviluppo_2006_2015": {
+    "sharpe": 0.49,
+    "CAGR_%": 2.48,
+    "profit_factor": 1.43
+   },
+   "validazione_2016_2020": {
+    "sharpe": 1.15,
+    "CAGR_%": 5.8,
+    "profit_factor": 2.42
+   },
+   "test_finale_2021_oggi": {
+    "sharpe": 0.82,
+    "CAGR_%": 4.12,
+    "profit_factor": 1.43
+   }
+  },
+  "D_volatilita": {
+   "sviluppo_2006_2015": {
+    "sharpe": 0.67,
+    "CAGR_%": 5.41,
+    "profit_factor": 2.65
+   },
+   "validazione_2016_2020": {
+    "sharpe": 0.93,
+    "CAGR_%": 6.2,
+    "profit_factor": 3.82
+   },
+   "test_finale_2021_oggi": {
+    "sharpe": 0.88,
+    "CAGR_%": 7.76,
+    "profit_factor": 2.97
+   }
+  }
+ }
+}

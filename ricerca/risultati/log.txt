@@ -1,0 +1,47 @@
+{
+ "A_trend": {
+  "sharpe_>=0.5_in_tutti_i_periodi": true,
+  "profit_factor_>=1.2_in_tutti_i_periodi": true,
+  "drawdown_entro_-20%": true,
+  "walk_forward_sharpe_>=0.5": true,
+  "robusta_ai_parametri": true,
+  "aggiunge_valore_al_bot_nel_test_finale": true,
+  "SUPERA": true
+ },
+ "B_mean_reversion": {
+  "sharpe_>=0.5_in_tutti_i_periodi": false,
+  "profit_factor_>=1.2_in_tutti_i_periodi": false,
+  "drawdown_entro_-20%": true,
+  "walk_forward_sharpe_>=0.5": false,
+  "robusta_ai_parametri": false,
+  "aggiunge_valore_al_bot_nel_test_finale": true,
+  "SUPERA": false
+ },
+ "C_breakout": {
+  "sharpe_>=0.5_in_tutti_i_periodi": false,
+  "profit_factor_>=1.2_in_tutti_i_periodi": true,
+  "drawdown_entro_-20%": true,
+  "walk_forward_sharpe_>=0.5": false,
+  "robusta_ai_parametri": true,
+  "aggiunge_valore_al_bot_nel_test_finale": true,
+  "SUPERA": false
+ },
+ "D_volatilita": {
+  "sharpe_>=0.5_in_tutti_i_periodi": true,
+  "profit_factor_>=1.2_in_tutti_i_periodi": true,
+  "drawdown_entro_-20%": true,
+  "walk_forward_sharpe_>=0.5": true,
+  "robusta_ai_parametri": true,
+  "aggiunge_valore_al_bot_nel_test_finale": false,
+  "SUPERA": false
+ },
+ "E_multi": {
+  "sharpe_>=0.5_in_tutti_i_periodi": true,
+  "profit_factor_>=1.2_in_tutti_i_periodi": true,
+  "drawdown_entro_-20%": true,
+  "walk_forward_sharpe_>=0.5": true,
+  "robusta_ai_parametri": true,
+  "aggiunge_valore_al_bot_nel_test_finale": true,
+  "SUPERA": true
+ }
+}
