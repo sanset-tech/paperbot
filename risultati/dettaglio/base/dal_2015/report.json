@@ -3,8 +3,8 @@
   "strategia": {
     "inizio": "2015-01-02",
     "fine": "2026-11-25",
-    "capitale_finale": 112963.93,
-    "rendimento_totale_%": 125.93,
+    "capitale_finale": 112985.09,
+    "rendimento_totale_%": 125.97,
     "CAGR_%": 7.09,
     "volatilita_%": 10.03,
     "sharpe": 0.73,
@@ -16,15 +16,15 @@
     "profit_factor": 2.81,
     "media_vincita": 744.04,
     "media_perdita": -462.3,
-    "interessi_liquidita": 3840.33,
+    "interessi_liquidita": 3840.32,
     "tasso_liquidita": "storico ^IRX"
   },
   "benchmark_buy_and_hold": {
     "inizio": "2015-01-02",
     "fine": "2026-11-25",
-    "capitale_finale": 131885.25,
-    "rendimento_totale_%": 163.77,
-    "CAGR_%": 8.49,
+    "capitale_finale": 132013.74,
+    "rendimento_totale_%": 164.03,
+    "CAGR_%": 8.5,
     "volatilita_%": 12.93,
     "sharpe": 0.7,
     "sortino": 0.88,
@@ -47,7 +47,7 @@
   "tattica": {
     "inizio": "2015-01-02",
     "fine": "2026-11-25",
-    "capitale_finale": 13145.93,
+    "capitale_finale": 13145.96,
     "rendimento_totale_%": 31.46,
     "CAGR_%": 2.33,
     "volatilita_%": 5.96,
@@ -78,15 +78,15 @@
   "combinato": {
     "inizio": "2015-01-02",
     "fine": "2026-11-25",
-    "capitale_finale": 126109.86,
-    "rendimento_totale_%": 110.18,
+    "capitale_finale": 126131.05,
+    "rendimento_totale_%": 110.22,
     "CAGR_%": 6.44,
     "volatilita_%": 9.16,
     "sharpe": 0.73,
     "sortino": 0.9,
     "max_drawdown_%": -12.18,
     "calmar": 0.53,
-    "benchmark_buy_and_hold_CAGR_%": 8.49,
+    "benchmark_buy_and_hold_CAGR_%": 8.5,
     "correlazione_base_tattica": 0.53
   }
 }

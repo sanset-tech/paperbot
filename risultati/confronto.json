@@ -1,0 +1,176 @@
+{
+ "base": {
+  "dal_2005": {
+   "CAGR_%": 8.31,
+   "sharpe": 0.8,
+   "max_drawdown_%": -14.56,
+   "volatilita_%": 10.8,
+   "operazioni": 348,
+   "profit_factor": 3.06
+  },
+  "dal_2015": {
+   "CAGR_%": 7.09,
+   "sharpe": 0.73,
+   "max_drawdown_%": -14.53,
+   "volatilita_%": 10.03,
+   "operazioni": 195,
+   "profit_factor": 2.81
+  },
+  "dal_2021": {
+   "CAGR_%": 8.86,
+   "sharpe": 0.84,
+   "max_drawdown_%": -11.7,
+   "volatilita_%": 10.88,
+   "operazioni": 92,
+   "profit_factor": 3.2
+  },
+  "ultimi_3_anni": {
+   "CAGR_%": 13.74,
+   "sharpe": 1.16,
+   "max_drawdown_%": -11.78,
+   "volatilita_%": 11.72,
+   "operazioni": 55,
+   "profit_factor": 5.79
+  }
+ },
+ "EQ_pesi_uguali": {
+  "dal_2005": {
+   "CAGR_%": 9.03,
+   "sharpe": 0.75,
+   "max_drawdown_%": -17.75,
+   "volatilita_%": 12.53,
+   "operazioni": 264,
+   "profit_factor": 2.97
+  },
+  "dal_2015": {
+   "CAGR_%": 7.44,
+   "sharpe": 0.68,
+   "max_drawdown_%": -17.33,
+   "volatilita_%": 11.54,
+   "operazioni": 153,
+   "profit_factor": 2.72
+  },
+  "dal_2021": {
+   "CAGR_%": 9.72,
+   "sharpe": 0.82,
+   "max_drawdown_%": -13.95,
+   "volatilita_%": 12.29,
+   "operazioni": 72,
+   "profit_factor": 3.37
+  },
+  "ultimi_3_anni": {
+   "CAGR_%": 14.82,
+   "sharpe": 1.1,
+   "max_drawdown_%": -13.98,
+   "volatilita_%": 13.43,
+   "operazioni": 43,
+   "profit_factor": 5.99
+  },
+  "approvabile_secondo_governance": false
+ },
+ "N3_top3": {
+  "dal_2005": {
+   "CAGR_%": 9.11,
+   "sharpe": 0.75,
+   "max_drawdown_%": -22.24,
+   "volatilita_%": 12.73,
+   "operazioni": 308,
+   "profit_factor": 2.57
+  },
+  "dal_2015": {
+   "CAGR_%": 6.3,
+   "sharpe": 0.58,
+   "max_drawdown_%": -22.09,
+   "volatilita_%": 11.84,
+   "operazioni": 185,
+   "profit_factor": 2.14
+  },
+  "dal_2021": {
+   "CAGR_%": 10.07,
+   "sharpe": 0.82,
+   "max_drawdown_%": -12.66,
+   "volatilita_%": 12.81,
+   "operazioni": 88,
+   "profit_factor": 2.74
+  },
+  "ultimi_3_anni": {
+   "CAGR_%": 15.55,
+   "sharpe": 1.16,
+   "max_drawdown_%": -12.65,
+   "volatilita_%": 13.28,
+   "operazioni": 51,
+   "profit_factor": 4.11
+  },
+  "approvabile_secondo_governance": false
+ },
+ "N4_top4": {
+  "dal_2005": {
+   "CAGR_%": 9.02,
+   "sharpe": 0.81,
+   "max_drawdown_%": -18.26,
+   "volatilita_%": 11.53,
+   "operazioni": 339,
+   "profit_factor": 2.98
+  },
+  "dal_2015": {
+   "CAGR_%": 6.96,
+   "sharpe": 0.68,
+   "max_drawdown_%": -18.32,
+   "volatilita_%": 10.81,
+   "operazioni": 208,
+   "profit_factor": 2.66
+  },
+  "dal_2021": {
+   "CAGR_%": 9.86,
+   "sharpe": 0.86,
+   "max_drawdown_%": -13.62,
+   "volatilita_%": 11.78,
+   "operazioni": 94,
+   "profit_factor": 3.44
+  },
+  "ultimi_3_anni": {
+   "CAGR_%": 15.29,
+   "sharpe": 1.19,
+   "max_drawdown_%": -13.57,
+   "volatilita_%": 12.67,
+   "operazioni": 57,
+   "profit_factor": 5.74
+  },
+  "approvabile_secondo_governance": false
+ },
+ "N6_top6": {
+  "dal_2005": {
+   "CAGR_%": 7.28,
+   "sharpe": 0.73,
+   "max_drawdown_%": -14.66,
+   "volatilita_%": 10.34,
+   "operazioni": 412,
+   "profit_factor": 2.67
+  },
+  "dal_2015": {
+   "CAGR_%": 5.72,
+   "sharpe": 0.62,
+   "max_drawdown_%": -14.54,
+   "volatilita_%": 9.73,
+   "operazioni": 223,
+   "profit_factor": 2.3
+  },
+  "dal_2021": {
+   "CAGR_%": 7.26,
+   "sharpe": 0.71,
+   "max_drawdown_%": -13.74,
+   "volatilita_%": 10.65,
+   "operazioni": 109,
+   "profit_factor": 2.57
+  },
+  "ultimi_3_anni": {
+   "CAGR_%": 12.4,
+   "sharpe": 1.07,
+   "max_drawdown_%": -10.93,
+   "volatilita_%": 11.65,
+   "operazioni": 58,
+   "profit_factor": 5.55
+  },
+  "approvabile_secondo_governance": false
+ }
+}

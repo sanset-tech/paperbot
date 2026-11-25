@@ -1,0 +1,76 @@
+{
+  "tipo_strategia": "rotation",
+  "strategia": {
+    "inizio": "2023-11-01",
+    "fine": "2026-11-25",
+    "capitale_finale": 76391.01,
+    "rendimento_totale_%": 52.78,
+    "CAGR_%": 14.82,
+    "volatilita_%": 13.43,
+    "sharpe": 1.1,
+    "sortino": 1.45,
+    "max_drawdown_%": -13.98,
+    "calmar": 1.06,
+    "operazioni": 43,
+    "win_rate_%": 67.4,
+    "profit_factor": 5.99,
+    "media_vincita": 1088.95,
+    "media_perdita": -376.78,
+    "interessi_liquidita": 139.75,
+    "tasso_liquidita": "storico ^IRX"
+  },
+  "benchmark_buy_and_hold": {
+    "inizio": "2023-11-01",
+    "fine": "2026-11-25",
+    "capitale_finale": 76724.8,
+    "rendimento_totale_%": 53.45,
+    "CAGR_%": 14.99,
+    "volatilita_%": 12.02,
+    "sharpe": 1.23,
+    "sortino": 1.67,
+    "max_drawdown_%": -12.17,
+    "calmar": 1.23
+  },
+  "rendimenti_annui_%": {
+    "2024": 10.3,
+    "2025": 20.6,
+    "2026": 6.9
+  },
+  "tattica": {
+    "inizio": "2023-11-01",
+    "fine": "2026-11-25",
+    "capitale_finale": 12048.08,
+    "rendimento_totale_%": 20.48,
+    "CAGR_%": 6.26,
+    "volatilita_%": 5.7,
+    "sharpe": 1.1,
+    "sortino": 0.98,
+    "max_drawdown_%": -7.64,
+    "calmar": 0.82,
+    "operazioni": 120,
+    "win_rate_%": 68.3,
+    "profit_factor": 1.36,
+    "media_vincita": 39.37,
+    "media_perdita": -62.66,
+    "interessi_liquidita": 1200.91
+  },
+  "tattica_rendimenti_annui_%": {
+    "2024": 7.9,
+    "2025": 2.7,
+    "2026": 7.3
+  },
+  "combinato": {
+    "inizio": "2023-11-01",
+    "fine": "2026-11-25",
+    "capitale_finale": 88439.09,
+    "rendimento_totale_%": 47.4,
+    "CAGR_%": 13.49,
+    "volatilita_%": 11.97,
+    "sharpe": 1.12,
+    "sortino": 1.47,
+    "max_drawdown_%": -12.87,
+    "calmar": 1.05,
+    "benchmark_buy_and_hold_CAGR_%": 14.99,
+    "correlazione_base_tattica": 0.55
+  }
+}
