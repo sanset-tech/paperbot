@@ -3,6 +3,18 @@
 Ogni modifica automatica o manuale va annotata qui: data, area (tecnica / laboratorio / strategia),
 cosa è cambiato, perché (con i numeri) e come annullarla. Regole: vedi `regole/governance` nel Laboratorio.
 
+## 2026-11-28 — tecnica: prezzi di mercato fermi segnati come "vecchio"
+- **Cosa**: in `lab_data.py` ogni voce di `mercato_pre_apertura` ha due campi nuovi: `eta_ore` (ore trascorse
+  dall'ultimo prezzo al momento dell'esecuzione) e `vecchio` (vero se il mercato tratta quasi 24 ore su 24 —
+  ES, NQ, RTY, petrolio, oro, dollaro, VIX — e il prezzo ha più di 6 ore). Nikkei, Stoxx e 10 anni hanno solo
+  `eta_ore`. Nessun altro campo cambia. Nuovo test `test_prezzo_di_mercato_fermo_segnato_vecchio` (caso reale
+  del 27/11), 50 test passano.
+- **Perché**: due volte in due settimane il briefing ha trovato futures fermi presentati come freschi: 17/11
+  (futures del giorno prima) e 27/11 (ES/NQ/RTY, petrolio, oro, dollaro fermi al 25/11 23:45 EST con
+  `seduta_di_oggi=true`, quindi ~38 ore). Il briefing ha dovuto prenderli da fonti esterne. Con `vecchio=true`
+  il briefing deve scartare il dato invece di usarlo per il filtro futures_concordi.
+- **Annullare**: `git revert` di questo commit (i campi in più vengono ignorati da chi non li usa).
+
 ## 2026-11-25 — tecnica: cicli dei prezzi anticipati e con durata massima
 - **Cosa**: in `quotes.yml` il primo ciclo passa da cron `1 12` a `31 10` (fine sempre 17:50 UTC), il secondo da
   `49 17` a `1 16` (fine 21:15 UTC). `scripts/ciclo_prezzi.sh` ora chiude il ciclo dopo al massimo 350 min

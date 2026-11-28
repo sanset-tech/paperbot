@@ -49,6 +49,20 @@ def indicators(df: pd.DataFrame) -> dict:
     return out
 
 
+# Mercati che trattano quasi 24 ore su 24 nei giorni feriali: un prezzo più vecchio di MAX_ETA_ORE è un
+# dato fermo (es. 27/11: futures fermi al 25/11 23:45 EST ma con seduta_di_oggi=true).
+CONTINUI = {"ES=F", "NQ=F", "RTY=F", "CL=F", "GC=F", "DX-Y.NYB", "^VIX"}
+MAX_ETA_ORE = 6.0
+
+
+def quote_age(ticker: str, ts: pd.Timestamp, now: pd.Timestamp) -> tuple[float, bool]:
+    """Età in ore dell'ultimo prezzo e se è da considerare vecchio (solo per i mercati continui)."""
+    if ts.tzinfo is None:
+        ts = ts.tz_localize("UTC")
+    age = max(0.0, (now - ts).total_seconds() / 3600)
+    return round(age, 1), bool(ticker in CONTINUI and age > MAX_ETA_ORE)
+
+
 def market_snapshot() -> dict:
     """Variazione di ogni mercato rispetto alla sua ultima chiusura, al momento dell'esecuzione."""
     import yfinance as yf
@@ -73,6 +87,9 @@ def market_snapshot() -> dict:
         out[t] = {"nome": name, "ultimo": round(last, 3), "variazione_pct": round(100 * (last / ref - 1), 2),
                   "seduta_di_oggi": traded_today,
                   "ora": (m.index[-1] if m is not None and not m.empty else day).strftime("%Y-%m-%d %H:%M %Z")}
+        eta, vecchio = quote_age(t, m.index[-1] if m is not None and not m.empty else day,
+                                 pd.Timestamp.now(tz="UTC"))
+        out[t]["eta_ore"], out[t]["vecchio"] = eta, vecchio
         if t == "^VIX":
             out[t]["variazione_5g_pct"] = round(100 * (float(d["Close"].iloc[-1]) / float(d["Close"].iloc[-6]) - 1), 2) if len(d) >= 6 else None
     return out

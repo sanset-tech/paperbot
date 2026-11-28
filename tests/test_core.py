@@ -245,3 +245,14 @@ def test_json_senza_nan():
     from lab_data import clean_nan
     x = clean_nan({"a": [1.0, float("nan")], "b": {"c": math.nan}})
     assert json.dumps(x, allow_nan=False) == '{"a": [1.0, null], "b": {"c": null}}'
+
+
+def test_prezzo_di_mercato_fermo_segnato_vecchio():
+    # caso reale 27/11: futures ES fermi al 25/11 23:45 EST letti alle 13:30 UTC del 27/11
+    from lab_data import quote_age
+    now = pd.Timestamp("2026-11-27 13:30", tz="UTC")
+    eta, vecchio = quote_age("ES=F", pd.Timestamp("2026-11-25 23:45", tz="America/New_York"), now)
+    assert vecchio and eta > 30
+    assert quote_age("ES=F", pd.Timestamp("2026-11-27 08:15", tz="America/New_York"), now) == (0.2, False)
+    # Nikkei chiuso da ore è normale, non è un dato fermo
+    assert quote_age("^N225", pd.Timestamp("2026-11-27 15:15", tz="Asia/Tokyo"), now)[1] is False
